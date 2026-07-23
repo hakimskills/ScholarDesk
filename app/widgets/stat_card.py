@@ -5,16 +5,22 @@ app/widgets/stat_card.py
 A KPI "stat" card used at the top of the dashboard: an icon badge,
 a large value, a title and a small trend indicator (up/down vs. the
 previous period). Fully reusable — just instantiate with new data.
+
+Optionally clickable: pass clickable=True and connect to the
+`clicked` signal to use a card as a navigation shortcut (e.g. the
+"Students" card opening the Students page).
 """
 
 from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QLabel, QGraphicsDropShadowEffect
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor
 
 from app.theme import Colors, Radius
 
 
 class StatCard(QFrame):
+    clicked = Signal()
+
     def __init__(
         self,
         icon: str,
@@ -24,11 +30,15 @@ class StatCard(QFrame):
         trend_positive: bool = True,
         accent_color: str = Colors.PRIMARY,
         accent_bg: str = Colors.PRIMARY_LIGHT,
+        clickable: bool = False,
         parent=None,
     ):
         super().__init__(parent)
         self.setObjectName("statCard")
         self.setMinimumHeight(140)
+        self.clickable = clickable
+        if clickable:
+            self.setCursor(Qt.PointingHandCursor)
         self._build_ui(icon, title, value, trend_text, trend_positive, accent_color, accent_bg)
         self._apply_shadow()
 
@@ -88,3 +98,8 @@ class StatCard(QFrame):
             outer.addLayout(trend_row)
         else:
             outer.addStretch(1)
+
+    def mousePressEvent(self, event):
+        if self.clickable and event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
