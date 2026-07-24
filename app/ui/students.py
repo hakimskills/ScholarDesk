@@ -2,21 +2,22 @@
 """
 app/ui/students.py
 
-The Students list page. Shows the full student roster with search,
-class/payment filters and per-row actions. Pure UI with sample data —
-replace `_sample_students()` with a real query against app/services
-once the SQLite layer is ready.
+The Students list page. Shows the student roster with live search,
+class/payment filters and per-row actions, backed by
+app/services/student_service.py (SQLite).
 """
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QFrame,
-    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView, QWidget,
+    QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView,
+    QWidget, QMessageBox,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QBrush
 
 from app.theme import Colors
 from app.common import ScrollPage, make_label, make_button
+from app.services import student_service
 
 # status_key -> (display text, text color, background color)
 _PAYMENT_STATUS = {
@@ -24,31 +25,31 @@ _PAYMENT_STATUS = {
     "partial": ("جزئي", Colors.WARNING, Colors.WARNING_LIGHT),
     "unpaid": ("غير مسدد", Colors.DANGER, Colors.DANGER_LIGHT),
 }
+_STATUS_LABEL_TO_KEY = {label: key for key, (label, _, _) in _PAYMENT_STATUS.items()}
 _COLUMNS = ["الاسم", "القسم", "ولي الأمر", "الهاتف", "تاريخ التسجيل", "حالة الدفع", "إجراءات"]
-
-_SAMPLE_STUDENTS = [
-    {"name": "ياسين بلحاج", "class_name": "السنة 3", "guardian": "محمد بلحاج", "phone": "0551 23 45 67", "joined_at": "12/09/2025", "payment_status": "paid"},
-    {"name": "مريم عبد الرحمان", "class_name": "تحضيري", "guardian": "سمير عبد الرحمان", "phone": "0662 34 56 78", "joined_at": "03/10/2025", "payment_status": "paid"},
-    {"name": "عمر شريف", "class_name": "السنة 2", "guardian": "كريم شريف", "phone": "0770 45 67 89", "joined_at": "20/09/2025", "payment_status": "unpaid"},
-    {"name": "لينا مرابط", "class_name": "السنة 5", "guardian": "فريد مرابط", "phone": "0554 56 78 90", "joined_at": "05/09/2025", "payment_status": "partial"},
-    {"name": "آدم بوزيد", "class_name": "السنة 1", "guardian": "ياسمين بوزيد", "phone": "0661 67 89 01", "joined_at": "18/09/2025", "payment_status": "paid"},
-    {"name": "نور الهدى قاسمي", "class_name": "السنة 4", "guardian": "عبد القادر قاسمي", "phone": "0772 78 90 12", "joined_at": "02/10/2025", "payment_status": "unpaid"},
-    {"name": "إلياس حمدي", "class_name": "السنة 3", "guardian": "رشيد حمدي", "phone": "0553 89 01 23", "joined_at": "14/09/2025", "payment_status": "paid"},
-    {"name": "سارة بن عيسى", "class_name": "تحضيري", "guardian": "نبيل بن عيسى", "phone": "0663 90 12 34", "joined_at": "27/09/2025", "payment_status": "partial"},
-]
+_CLASS_OPTIONS = ["كل الأقسام", "تحضيري", "السنة 1", "السنة 2", "السنة 3", "السنة 4", "السنة 5"]
+_STATUS_OPTIONS = ["كل حالات الدفع"] + [label for label, _, _ in _PAYMENT_STATUS.values()]
 
 
 class StudentsPage(ScrollPage):
     navigate_requested = Signal(str)
 
     def __init__(self, parent=None):
-        self._students = _SAMPLE_STUDENTS
         super().__init__(spacing=18, parent=parent)
 
         self.content_layout.addLayout(self._build_header())
         self.content_layout.addLayout(self._build_toolbar())
         self.content_layout.addWidget(self._build_table_card())
 
+        self.search_box.textChanged.connect(self._reload)
+        self.class_filter.currentIndexChanged.connect(self._reload)
+        self.status_filter.currentIndexChanged.connect(self._reload)
+
+        self._reload()
+
+    # ------------------------------------------------------------------ #
+    # Header
+    # ------------------------------------------------------------------ #
     def _build_header(self) -> QHBoxLayout:
         header = QHBoxLayout()
         header.setSpacing(16)
@@ -60,7 +61,8 @@ class StudentsPage(ScrollPage):
             on_click=lambda: self.navigate_requested.emit("dashboard"),
         ))
         title_box.addWidget(make_label("الطلاب", "pageTitle"))
-        title_box.addWidget(make_label(f"{len(self._students)} طالب مسجل في المدرسة", "pageSubtitle"))
+        self.subtitle_label = make_label("", "pageSubtitle")
+        title_box.addWidget(self.subtitle_label)
         header.addLayout(title_box)
         header.addStretch(1)
 
@@ -68,61 +70,89 @@ class StudentsPage(ScrollPage):
         header.addWidget(make_button("+  إضافة طالب", "primaryButton"))
         return header
 
+    # ------------------------------------------------------------------ #
+    # Search + filters
+    # ------------------------------------------------------------------ #
     def _build_toolbar(self) -> QHBoxLayout:
         toolbar = QHBoxLayout()
         toolbar.setSpacing(10)
 
-        search_box = QLineEdit()
-        search_box.setObjectName("searchBox")
-        search_box.setPlaceholderText("🔍  ابحث بالاسم، الهاتف أو ولي الأمر...")
-        search_box.setAlignment(Qt.AlignRight)
-        toolbar.addWidget(search_box, 1)
+        self.search_box = QLineEdit()
+        self.search_box.setObjectName("searchBox")
+        self.search_box.setPlaceholderText("🔍  ابحث بالاسم، الهاتف أو ولي الأمر...")
+        self.search_box.setAlignment(Qt.AlignRight)
+        toolbar.addWidget(self.search_box, 1)
 
-        class_filter = QComboBox(objectName="filterCombo")
-        class_filter.addItems(["كل الأقسام", "تحضيري", "السنة 1", "السنة 2", "السنة 3", "السنة 4", "السنة 5"])
-        toolbar.addWidget(class_filter)
+        self.class_filter = QComboBox(objectName="filterCombo")
+        self.class_filter.addItems(_CLASS_OPTIONS)
+        toolbar.addWidget(self.class_filter)
 
-        status_filter = QComboBox(objectName="filterCombo")
-        status_filter.addItems(["كل حالات الدفع", "مسدد", "جزئي", "غير مسدد"])
-        toolbar.addWidget(status_filter)
+        self.status_filter = QComboBox(objectName="filterCombo")
+        self.status_filter.addItems(_STATUS_OPTIONS)
+        toolbar.addWidget(self.status_filter)
 
         return toolbar
 
+    def _current_filters(self):
+        class_name = self.class_filter.currentText()
+        if class_name == _CLASS_OPTIONS[0]:
+            class_name = ""
+
+        status_label = self.status_filter.currentText()
+        status_key = _STATUS_LABEL_TO_KEY.get(status_label, "")
+
+        return self.search_box.text().strip(), class_name, status_key
+
+    # ------------------------------------------------------------------ #
+    # Table
+    # ------------------------------------------------------------------ #
     def _build_table_card(self) -> QFrame:
         card = QFrame(objectName="tableCard")
         layout = QVBoxLayout(card)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(0)
 
-        table = QTableWidget()
-        table.setObjectName("dataTable")
-        table.setLayoutDirection(Qt.RightToLeft)
-        table.setColumnCount(len(_COLUMNS))
-        table.setHorizontalHeaderLabels(_COLUMNS)
-        table.verticalHeader().setVisible(False)
-        table.setShowGrid(False)
-        table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        table.setFocusPolicy(Qt.NoFocus)
-        table.verticalHeader().setDefaultSectionSize(58)
+        self.table = QTableWidget()
+        self.table.setObjectName("dataTable")
+        self.table.setLayoutDirection(Qt.RightToLeft)
+        self.table.setColumnCount(len(_COLUMNS))
+        self.table.setHorizontalHeaderLabels(_COLUMNS)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setFocusPolicy(Qt.NoFocus)
+        self.table.verticalHeader().setDefaultSectionSize(58)
 
-        header = table.horizontalHeader()
+        header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         for col in range(1, len(_COLUMNS) - 1):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(len(_COLUMNS) - 1, QHeaderView.Fixed)
-        table.setColumnWidth(len(_COLUMNS) - 1, 100)
+        self.table.setColumnWidth(len(_COLUMNS) - 1, 100)
 
-        table.setRowCount(len(self._students))
-        for row, student in enumerate(self._students):
-            table.setCellWidget(row, 0, self._build_name_cell(student["name"]))
-            for col, key in enumerate(("class_name", "guardian", "phone", "joined_at"), start=1):
-                table.setItem(row, col, self._build_text_item(student[key]))
-            table.setCellWidget(row, 5, self._build_status_cell(student["payment_status"]))
-            table.setCellWidget(row, 6, self._build_actions_cell())
-
-        layout.addWidget(table)
+        layout.addWidget(self.table)
         return card
+
+    def _reload(self):
+        """Re-query the database with the current search/filter state and repaint the table."""
+        search, class_name, status_key = self._current_filters()
+        students = student_service.get_all_students(
+            search=search, class_name=class_name, payment_status=status_key,
+        )
+
+        total = student_service.count_students()
+        self.subtitle_label.setText(f"{total} طالب مسجل في المدرسة")
+
+        self.table.setRowCount(len(students))
+        for row, student in enumerate(students):
+            self.table.setCellWidget(row, 0, self._build_name_cell(student.name))
+            for col, value in enumerate(
+                (student.class_name, student.guardian, student.phone, student.joined_at), start=1
+            ):
+                self.table.setItem(row, col, self._build_text_item(value))
+            self.table.setCellWidget(row, 5, self._build_status_cell(student.payment_status))
+            self.table.setCellWidget(row, 6, self._build_actions_cell(student.id))
 
     def _build_name_cell(self, name: str) -> QWidget:
         wrapper = QWidget()
@@ -153,13 +183,26 @@ class StudentsPage(ScrollPage):
         row.addStretch(1)
         return wrapper
 
-    def _build_actions_cell(self) -> QWidget:
+    def _build_actions_cell(self, student_id: int) -> QWidget:
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(4)
         row.addStretch(1)
-        for icon in ("👁", "✏", "🗑"):
-            row.addWidget(make_button(icon, "rowActionButton"))
+        row.addWidget(make_button("👁", "rowActionButton"))
+        row.addWidget(make_button("✏", "rowActionButton"))
+        row.addWidget(make_button(
+            "🗑", "rowActionButton",
+            on_click=lambda: self._confirm_delete(student_id),
+        ))
         row.addStretch(1)
         return wrapper
+
+    def _confirm_delete(self, student_id: int):
+        answer = QMessageBox.question(
+            self, "تأكيد الحذف", "هل أنت متأكد من حذف هذا الطالب؟",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes:
+            student_service.delete_student(student_id)
+            self._reload()

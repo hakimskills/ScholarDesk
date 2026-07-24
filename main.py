@@ -13,6 +13,8 @@ import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from PySide6.QtCore import Qt
 
+from app.database import init_db
+from app.services.student_service import seed_demo_data
 from app.theme import load_app_fonts, build_app_font, build_stylesheet
 from app.ui.dashboard import Dashboard
 from app.ui.students import StudentsPage
@@ -56,6 +58,9 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    init_db()
+    seed_demo_data()  # remove this line once you have real students in the table
+
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)
 
