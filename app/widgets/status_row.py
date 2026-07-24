@@ -6,10 +6,9 @@ A labeled progress row used for "payment status" breakdowns
 (e.g. Paid / Partial / Unpaid), each with its own color and count.
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QProgressBar
 
-from app.theme import Colors
+from app.common import make_label
 
 
 class StatusRow(QWidget):
@@ -21,25 +20,15 @@ class StatusRow(QWidget):
         layout.setSpacing(8)
 
         top_row = QHBoxLayout()
-
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color: {dot_color}; font-size: 12px;")
+        dot = make_label("●", align=None, style=f"color: {dot_color}; font-size: 12px;")
         dot.setFixedWidth(16)
         top_row.addWidget(dot)
-
-        label_widget = QLabel(label)
-        label_widget.setObjectName("rowLabel")
-        top_row.addWidget(label_widget)
+        top_row.addWidget(make_label(label, "rowLabel", align=None))
         top_row.addStretch(1)
-
-        value_widget = QLabel(count_text)
-        value_widget.setObjectName("rowValue")
-        top_row.addWidget(value_widget)
-
+        top_row.addWidget(make_label(count_text, "rowValue", align=None))
         layout.addLayout(top_row)
 
-        bar = QProgressBar()
-        bar.setObjectName("statusBar")
+        bar = QProgressBar(objectName="statusBar")
         bar.setRange(0, 100)
         bar.setValue(percent)
         bar.setTextVisible(False)

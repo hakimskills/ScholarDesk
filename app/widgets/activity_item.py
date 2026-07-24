@@ -6,10 +6,11 @@ A single row in the "Recent Activities" feed: a colored icon badge,
 a title, a short meta description and a relative timestamp.
 """
 
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
 from PySide6.QtCore import Qt
 
 from app.theme import Colors
+from app.common import make_label
 
 
 class ActivityItem(QFrame):
@@ -30,28 +31,15 @@ class ActivityItem(QFrame):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(12)
 
-        icon_label = QLabel(icon)
-        icon_label.setObjectName("activityIcon")
+        icon_label = make_label(icon, "activityIcon", align=None,
+                                 style=f"background-color: {accent_bg}; color: {accent_color};")
         icon_label.setFixedSize(38, 38)
-        icon_label.setStyleSheet(f"background-color: {accent_bg}; color: {accent_color};")
         layout.addWidget(icon_label)
 
         text_box = QVBoxLayout()
         text_box.setSpacing(2)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("activityTitle")
-        title_label.setAlignment(Qt.AlignRight)
-        text_box.addWidget(title_label)
-
-        meta_label = QLabel(meta)
-        meta_label.setObjectName("activityMeta")
-        meta_label.setAlignment(Qt.AlignRight)
-        text_box.addWidget(meta_label)
-
+        text_box.addWidget(make_label(title, "activityTitle"))
+        text_box.addWidget(make_label(meta, "activityMeta"))
         layout.addLayout(text_box, 1)
 
-        time_label = QLabel(time_text)
-        time_label.setObjectName("activityTime")
-        time_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        layout.addWidget(time_label)
+        layout.addWidget(make_label(time_text, "activityTime", align=Qt.AlignLeft | Qt.AlignTop))

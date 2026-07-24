@@ -8,15 +8,9 @@ an optional subtitle, an optional trailing widget (buttons / chips)
 and a body area that callers fill with their own content.
 """
 
-from PySide6.QtWidgets import (
-    QFrame,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QWidget,
-    QGraphicsDropShadowEffect,
-)
-from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QWidget
+
+from app.common import make_label, apply_shadow
 
 
 class SectionCard(QFrame):
@@ -33,26 +27,17 @@ class SectionCard(QFrame):
 
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
-
-        title_label = QLabel(title)
-        title_label.setObjectName("sectionTitle")
-        title_box.addWidget(title_label)
-
+        title_box.addWidget(make_label(title, "sectionTitle", align=None))
         if subtitle:
-            subtitle_label = QLabel(subtitle)
-            subtitle_label.setObjectName("sectionSubtitle")
-            title_box.addWidget(subtitle_label)
-
+            title_box.addWidget(make_label(subtitle, "sectionSubtitle", align=None))
         header.addLayout(title_box)
         header.addStretch(1)
 
         if trailing is not None:
             header.addWidget(trailing)
-
         outer.addLayout(header)
 
-        separator = QFrame()
-        separator.setObjectName("sectionSeparator")
+        separator = QFrame(objectName="sectionSeparator")
         separator.setFrameShape(QFrame.HLine)
         outer.addWidget(separator)
 
@@ -62,15 +47,7 @@ class SectionCard(QFrame):
         self.body_layout.setSpacing(12)
         outer.addWidget(self.body)
 
-        self._apply_shadow()
-
-    def _apply_shadow(self):
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(28)
-        shadow.setXOffset(0)
-        shadow.setYOffset(10)
-        shadow.setColor(QColor(27, 33, 64, 16))
-        self.setGraphicsEffect(shadow)
+        apply_shadow(self, blur=28, y_offset=10, alpha=16)
 
     def add_widget(self, widget: QWidget):
         self.body_layout.addWidget(widget)
