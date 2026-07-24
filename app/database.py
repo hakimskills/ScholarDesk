@@ -18,6 +18,23 @@ DB_PATH = os.path.join(DATA_DIR, "school.db")
 
 _connection: Optional[sqlite3.Connection] = None
 
+# Columns added after the original release. Each is TEXT NOT NULL
+# DEFAULT '' so existing rows (and the "assign class later" flow,
+# where class_name starts empty) stay valid without extra checks.
+# NOTE: name here is the *new* schema; "name" (old single-field name)
+# is handled separately by _migrate_legacy_name_column below.
+_NEW_TEXT_COLUMNS = [
+    "first_name",
+    "last_name",
+    "file_number",
+    "code",
+    "birth_date",
+    "birth_place",
+    "address",
+    "guardian_phone",
+    "educational_institution",
+]
+
 
 def get_connection() -> sqlite3.Connection:
     """Return the shared SQLite connection, opening it on first use."""
@@ -34,35 +51,75 @@ def init_db():
     """
     Create tables if they don't exist yet. Safe to call on every
     startup — CREATE TABLE IF NOT EXISTS is a no-op once the schema
-    is in place.
+    is in place, and the migration helpers below only add what's
+    missing.
     """
     conn = get_connection()
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS students (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            name           TEXT NOT NULL,
-            class_name     TEXT NOT NULL,
-            guardian       TEXT NOT NULL,
-            phone          TEXT NOT NULL,
-            joined_at      TEXT NOT NULL,
-            payment_status TEXT NOT NULL DEFAULT 'unpaid'
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name              TEXT NOT NULL DEFAULT '',
+            last_name               TEXT NOT NULL DEFAULT '',
+            file_number             TEXT NOT NULL DEFAULT '',
+            code                    TEXT NOT NULL DEFAULT '',
+            birth_date              TEXT NOT NULL DEFAULT '',
+            birth_place             TEXT NOT NULL DEFAULT '',
+            guardian                TEXT NOT NULL DEFAULT '',
+            address                 TEXT NOT NULL DEFAULT '',
+            phone                   TEXT NOT NULL DEFAULT '',
+            guardian_phone          TEXT NOT NULL DEFAULT '',
+            educational_institution TEXT NOT NULL DEFAULT '',
+            class_name              TEXT NOT NULL DEFAULT '',
+            joined_at               TEXT NOT NULL,
+            payment_status          TEXT NOT NULL DEFAULT 'unpaid'
                 CHECK (payment_status IN ('paid', 'unpaid'))
         );
         """
     )
     conn.commit()
-    _migrate_legacy_partial_status(conn)
+    _migrate_new_columns(conn)
+    _migrate_legacy_name_column(conn)
 
 
-def _migrate_legacy_partial_status(conn: sqlite3.Connection):
+def _existing_columns(conn: sqlite3.Connection) -> set:
+    return {row["name"] for row in conn.execute("PRAGMA table_info(students)")}
+
+
+def _migrate_new_columns(conn: sqlite3.Connection):
     """
-    Earlier versions of this table allowed a third 'partial' status.
-    Collapse any leftover rows from that period into 'unpaid' so old
-    test data doesn't linger with a status the UI no longer shows.
-    No-op if none exist.
+    Add any column introduced after the table was first created (e.g.
+    on a database from an older version of the app). No-op once the
+    schema already has them.
     """
-    conn.execute("UPDATE students SET payment_status = 'unpaid' WHERE payment_status = 'partial'")
+    existing = _existing_columns(conn)
+    for column in _NEW_TEXT_COLUMNS:
+        if column not in existing:
+            conn.execute(f"ALTER TABLE students ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+    if "class_name" not in existing:
+        conn.execute("ALTER TABLE students ADD COLUMN class_name TEXT NOT NULL DEFAULT ''")
+    conn.commit()
+
+
+def _migrate_legacy_name_column(conn: sqlite3.Connection):
+    """
+    The very first schema stored a single 'name' column. If it's
+    still around, fold it into last_name for any row that hasn't
+    been split yet, so existing students keep a readable name after
+    upgrading. Safe/no-op once there's nothing left to migrate.
+    """
+    existing = _existing_columns(conn)
+    if "name" not in existing:
+        return
+    conn.execute(
+        """
+        UPDATE students
+        SET last_name = name
+        WHERE (last_name IS NULL OR last_name = '')
+          AND (first_name IS NULL OR first_name = '')
+          AND name IS NOT NULL AND name != ''
+        """
+    )
     conn.commit()
 
 
