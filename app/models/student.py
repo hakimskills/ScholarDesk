@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Keep this in sync with the CHECK constraint in app/database.py
-PAYMENT_STATUSES = ("paid", "partial", "unpaid")
+PAYMENT_STATUSES = ("paid", "unpaid")
 
 
 @dataclass

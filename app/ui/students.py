@@ -17,18 +17,13 @@ from PySide6.QtGui import QColor, QBrush
 
 from app.theme import Colors
 from app.common import ScrollPage, make_label, make_button
+from app.constants import PAYMENT_STATUS, STATUS_LABEL_TO_KEY, CLASS_OPTIONS
 from app.services import student_service
+from app.ui.student_form import StudentFormDialog
 
-# status_key -> (display text, text color, background color)
-_PAYMENT_STATUS = {
-    "paid": ("مسدد", Colors.SUCCESS, Colors.SUCCESS_LIGHT),
-    "partial": ("جزئي", Colors.WARNING, Colors.WARNING_LIGHT),
-    "unpaid": ("غير مسدد", Colors.DANGER, Colors.DANGER_LIGHT),
-}
-_STATUS_LABEL_TO_KEY = {label: key for key, (label, _, _) in _PAYMENT_STATUS.items()}
 _COLUMNS = ["الاسم", "القسم", "ولي الأمر", "الهاتف", "تاريخ التسجيل", "حالة الدفع", "إجراءات"]
-_CLASS_OPTIONS = ["كل الأقسام", "تحضيري", "السنة 1", "السنة 2", "السنة 3", "السنة 4", "السنة 5"]
-_STATUS_OPTIONS = ["كل حالات الدفع"] + [label for label, _, _ in _PAYMENT_STATUS.values()]
+_CLASS_OPTIONS = ["كل الأقسام"] + CLASS_OPTIONS
+_STATUS_OPTIONS = ["كل حالات الدفع"] + [label for label, _, _ in PAYMENT_STATUS.values()]
 
 
 class StudentsPage(ScrollPage):
@@ -67,8 +62,21 @@ class StudentsPage(ScrollPage):
         header.addStretch(1)
 
         header.addWidget(make_button("⬇  تصدير", "outlineButton"))
-        header.addWidget(make_button("+  إضافة طالب", "primaryButton"))
+        header.addWidget(make_button("+  إضافة طالب", "primaryButton", on_click=self._open_add_form))
         return header
+
+    def _open_add_form(self):
+        dialog = StudentFormDialog(parent=self)
+        if dialog.exec() == StudentFormDialog.Accepted:
+            self._reload()
+
+    def _open_edit_form(self, student_id: int):
+        student = student_service.get_student(student_id)
+        if student is None:
+            return
+        dialog = StudentFormDialog(student=student, parent=self)
+        if dialog.exec() == StudentFormDialog.Accepted:
+            self._reload()
 
     # ------------------------------------------------------------------ #
     # Search + filters
@@ -99,7 +107,7 @@ class StudentsPage(ScrollPage):
             class_name = ""
 
         status_label = self.status_filter.currentText()
-        status_key = _STATUS_LABEL_TO_KEY.get(status_label, "")
+        status_key = STATUS_LABEL_TO_KEY.get(status_label, "")
 
         return self.search_box.text().strip(), class_name, status_key
 
@@ -169,7 +177,7 @@ class StudentsPage(ScrollPage):
         return item
 
     def _build_status_cell(self, status_key: str) -> QWidget:
-        text, color, bg = _PAYMENT_STATUS.get(status_key, ("—", Colors.TEXT_MUTED, Colors.SURFACE_ALT))
+        text, color, bg = PAYMENT_STATUS.get(status_key, ("—", Colors.TEXT_MUTED, Colors.SURFACE_ALT))
         badge = make_label(
             text, "statusBadge",
             style=f"background-color: {bg}; color: {color}; border-radius: 10px; padding: 3px 10px; font-size: 11.5px; font-weight: 600;",
@@ -190,7 +198,10 @@ class StudentsPage(ScrollPage):
         row.setSpacing(4)
         row.addStretch(1)
         row.addWidget(make_button("👁", "rowActionButton"))
-        row.addWidget(make_button("✏", "rowActionButton"))
+        row.addWidget(make_button(
+            "✏", "rowActionButton",
+            on_click=lambda: self._open_edit_form(student_id),
+        ))
         row.addWidget(make_button(
             "🗑", "rowActionButton",
             on_click=lambda: self._confirm_delete(student_id),

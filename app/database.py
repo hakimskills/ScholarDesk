@@ -47,10 +47,22 @@ def init_db():
             phone          TEXT NOT NULL,
             joined_at      TEXT NOT NULL,
             payment_status TEXT NOT NULL DEFAULT 'unpaid'
-                CHECK (payment_status IN ('paid', 'partial', 'unpaid'))
+                CHECK (payment_status IN ('paid', 'unpaid'))
         );
         """
     )
+    conn.commit()
+    _migrate_legacy_partial_status(conn)
+
+
+def _migrate_legacy_partial_status(conn: sqlite3.Connection):
+    """
+    Earlier versions of this table allowed a third 'partial' status.
+    Collapse any leftover rows from that period into 'unpaid' so old
+    test data doesn't linger with a status the UI no longer shows.
+    No-op if none exist.
+    """
+    conn.execute("UPDATE students SET payment_status = 'unpaid' WHERE payment_status = 'partial'")
     conn.commit()
 
 
