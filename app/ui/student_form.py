@@ -2,13 +2,16 @@
 """
 app/ui/student_form.py
 
-Add / edit student dialog.
+Add / edit student dialog, laid out as grouped two-column sections
+(mirroring the reference school-software form): شخصية info, اتصال
+info, then status. Styled via the formDialog/formCard/formInput
+rules in app/theme.py.
 
 - Add mode (student=None): collects registration info only — the
-  fields mirrored from the reference school-software form (اللقب,
-  الإسم, الملف, الرمز, الإزدياد, المكان, الولي, العنوان, الهاتف,
-  هاتف الولي, المؤسسة التعليمية) plus the app's own تسجيل/حالة الدفع
-  fields. There is deliberately NO class field here — students are
+  fields mirrored from the reference form (اللقب, الإسم, الملف,
+  الرمز, الإزدياد, المكان, الولي, العنوان, الهاتف, هاتف الولي,
+  المؤسسة التعليمية) plus the app's own تسجيل/حالة الدفع fields.
+  There is deliberately NO class field here — students are
   registered first and assigned to a class later.
 - Edit mode (student=<existing>): same fields, PLUS the class combo,
   since assigning/changing the class happens through editing an
@@ -20,126 +23,226 @@ with Accepted.
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QFormLayout, QLineEdit, QComboBox, QDateEdit,
-    QDialogButtonBox, QMessageBox, QVBoxLayout,
+    QDialog, QGridLayout, QLineEdit, QComboBox, QDateEdit,
+    QMessageBox, QVBoxLayout, QHBoxLayout, QFrame, QWidget, QLabel,
+    QScrollArea,
 )
 from PySide6.QtCore import Qt, QDate
 
 from app.constants import CLASS_OPTIONS, PAYMENT_STATUS, UNASSIGNED_CLASS_LABEL
 from app.models.student import Student, UNASSIGNED_CLASS
 from app.services import student_service
+from app.common import make_label, make_button
 
 _DATE_FORMAT = "dd/MM/yyyy"
 
 
 def _make_date_edit() -> QDateEdit:
-    date_edit = QDateEdit()
+    date_edit = QDateEdit(objectName="formDate")
     date_edit.setCalendarPopup(True)
     date_edit.setDisplayFormat(_DATE_FORMAT)
     date_edit.setDate(QDate.currentDate())
     return date_edit
 
 
+def _make_line_edit(placeholder: str = "") -> QLineEdit:
+    line_edit = QLineEdit(objectName="formInput")
+    line_edit.setAlignment(Qt.AlignRight)
+    if placeholder:
+        line_edit.setPlaceholderText(placeholder)
+    return line_edit
+
+
+def _field_box(label_text: str, widget: QWidget) -> QVBoxLayout:
+    """Label stacked above its input — one cell of the two-column grid."""
+    box = QVBoxLayout()
+    box.setSpacing(6)
+    box.addWidget(make_label(label_text, "formFieldLabel", align=Qt.AlignRight))
+    box.addWidget(widget)
+    return box
+
+
 class StudentFormDialog(QDialog):
     def __init__(self, student: Student = None, parent=None):
         super().__init__(parent)
+        self.setObjectName("formDialog")
         self.setLayoutDirection(Qt.RightToLeft)
         self._student = student
         self._is_edit = student is not None
         self.setWindowTitle("تعديل بيانات الطالب" if self._is_edit else "إضافة طالب جديد")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(560)
 
         self._build_ui()
         if student:
             self._fill_from(student)
+        self._fit_to_screen()
 
+    # ------------------------------------------------------------------ #
+    # Layout
+    # ------------------------------------------------------------------ #
     def _build_ui(self):
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(28, 24, 28, 16)
+        outer.setSpacing(14)
 
-        form = QFormLayout()
-        form.setLabelAlignment(Qt.AlignRight)
-        form.setFormAlignment(Qt.AlignRight)
-        form.setHorizontalSpacing(14)
-        form.setVerticalSpacing(10)
+        # Header stays fixed at the top, outside the scroll area.
+        outer.addLayout(self._build_header())
 
-        # --- اللقب / الإسم ---
-        self.last_name_input = QLineEdit()
-        self.last_name_input.setAlignment(Qt.AlignRight)
-        form.addRow("اللقب *", self.last_name_input)
+        card = QFrame(objectName="formCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(24, 22, 24, 22)
+        card_layout.setSpacing(20)
 
-        self.first_name_input = QLineEdit()
-        self.first_name_input.setAlignment(Qt.AlignRight)
-        form.addRow("الإسم *", self.first_name_input)
+        card_layout.addLayout(self._build_personal_section())
+        card_layout.addWidget(self._separator())
+        card_layout.addLayout(self._build_contact_section())
+        card_layout.addWidget(self._separator())
+        card_layout.addLayout(self._build_status_section())
 
-        # --- الملف / الرمز ---
-        self.file_number_input = QLineEdit()
-        self.file_number_input.setAlignment(Qt.AlignRight)
-        form.addRow("الملف", self.file_number_input)
+        # The card is the only part that scrolls — on a short screen
+        # you can always reach the buttons below without resizing
+        # the window, since they live outside this scroll area.
+        scroll = QScrollArea()
+        scroll.setObjectName("formScrollArea")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setLayoutDirection(Qt.RightToLeft)
+        scroll.setWidget(card)
+        outer.addWidget(scroll, 1)
 
-        self.code_input = QLineEdit()
-        self.code_input.setAlignment(Qt.AlignRight)
-        form.addRow("الرمز", self.code_input)
+        outer.addLayout(self._build_buttons_row())
 
-        # --- الإزدياد / المكان ---
+    def _fit_to_screen(self):
+        """Cap the dialog's height to the available screen so the
+        button row is never pushed off-screen; the card scrolls
+        internally to make up the difference."""
+        screen = self.screen() or (self.parent().screen() if self.parent() else None)
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        max_height = max(420, int(available.height() * 0.9))
+        self.resize(self.width(), min(self.sizeHint().height(), max_height))
+        self.setMaximumHeight(max_height)
+
+    def _build_header(self) -> QVBoxLayout:
+        header = QVBoxLayout()
+        header.setSpacing(2)
+        title = "تعديل بيانات الطالب" if self._is_edit else "إضافة طالب جديد"
+        subtitle = (
+            "يمكنك هنا تعديل بيانات الطالب وإسناد القسم."
+            if self._is_edit else
+            "أدخل بيانات التسجيل الأساسية — يمكن إسناد القسم لاحقاً من نافذة التعديل."
+        )
+        header.addWidget(make_label(title, "formTitle", align=Qt.AlignRight))
+        header.addWidget(make_label(subtitle, "formSubtitle", align=Qt.AlignRight))
+        return header
+
+    def _separator(self) -> QFrame:
+        line = QFrame(objectName="formHeaderSeparator")
+        line.setFrameShape(QFrame.HLine)
+        return line
+
+    def _section_title(self, text: str) -> QLabel:
+        return make_label(text, "formSectionTitle", align=Qt.AlignRight)
+
+    # --- المعلومات الشخصية ---
+    def _build_personal_section(self) -> QVBoxLayout:
+        section = QVBoxLayout()
+        section.setSpacing(14)
+        section.addWidget(self._section_title("المعلومات الشخصية"))
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(14)
+
+        self.last_name_input = _make_line_edit()
+        self.first_name_input = _make_line_edit()
+        self.file_number_input = _make_line_edit()
+        self.code_input = _make_line_edit()
         self.birth_date_input = _make_date_edit()
-        form.addRow("الإزدياد", self.birth_date_input)
+        self.birth_place_input = _make_line_edit()
 
-        self.birth_place_input = QLineEdit()
-        self.birth_place_input.setAlignment(Qt.AlignRight)
-        form.addRow("المكان", self.birth_place_input)
+        grid.addLayout(_field_box("اللقب *", self.last_name_input), 0, 0)
+        grid.addLayout(_field_box("الإسم *", self.first_name_input), 0, 1)
+        grid.addLayout(_field_box("الملف", self.file_number_input), 1, 0)
+        grid.addLayout(_field_box("الرمز", self.code_input), 1, 1)
+        grid.addLayout(_field_box("الإزدياد", self.birth_date_input), 2, 0)
+        grid.addLayout(_field_box("المكان", self.birth_place_input), 2, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
 
-        # --- تسجيل ---
+        section.addLayout(grid)
+        return section
+
+    # --- معلومات الاتصال ---
+    def _build_contact_section(self) -> QVBoxLayout:
+        section = QVBoxLayout()
+        section.setSpacing(14)
+        section.addWidget(self._section_title("معلومات الاتصال"))
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(14)
+
+        self.guardian_input = _make_line_edit()
+        self.guardian_phone_input = _make_line_edit()
+        self.address_input = _make_line_edit()
+        self.phone_input = _make_line_edit("0551 23 45 67")
+        self.institution_input = _make_line_edit()
         self.joined_input = _make_date_edit()
-        form.addRow("تاريخ التسجيل", self.joined_input)
 
-        # --- الولي / هاتف الولي ---
-        self.guardian_input = QLineEdit()
-        self.guardian_input.setAlignment(Qt.AlignRight)
-        form.addRow("الولي *", self.guardian_input)
+        grid.addLayout(_field_box("الولي *", self.guardian_input), 0, 0)
+        grid.addLayout(_field_box("هاتف الولي", self.guardian_phone_input), 0, 1)
+        grid.addLayout(_field_box("العنوان", self.address_input), 1, 0)
+        grid.addLayout(_field_box("الهاتف *", self.phone_input), 1, 1)
+        grid.addLayout(_field_box("المؤسسة التعليمية", self.institution_input), 2, 0)
+        grid.addLayout(_field_box("تاريخ التسجيل", self.joined_input), 2, 1)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
 
-        self.guardian_phone_input = QLineEdit()
-        self.guardian_phone_input.setAlignment(Qt.AlignRight)
-        form.addRow("هاتف الولي", self.guardian_phone_input)
+        section.addLayout(grid)
+        return section
 
-        # --- العنوان ---
-        self.address_input = QLineEdit()
-        self.address_input.setAlignment(Qt.AlignRight)
-        form.addRow("العنوان", self.address_input)
+    # --- الحالة (القسم يُسند لاحقاً، لذا يظهر فقط عند التعديل) ---
+    def _build_status_section(self) -> QVBoxLayout:
+        section = QVBoxLayout()
+        section.setSpacing(14)
+        section.addWidget(self._section_title("الحالة"))
 
-        # --- الهاتف ---
-        self.phone_input = QLineEdit()
-        self.phone_input.setAlignment(Qt.AlignRight)
-        self.phone_input.setPlaceholderText("0551 23 45 67")
-        form.addRow("الهاتف *", self.phone_input)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(14)
 
-        # --- المؤسسة التعليمية ---
-        self.institution_input = QLineEdit()
-        self.institution_input.setAlignment(Qt.AlignRight)
-        form.addRow("المؤسسة التعليمية", self.institution_input)
-
-        # --- القسم — edit mode only, assigned later, not at creation ---
-        self.class_input = None
-        if self._is_edit:
-            self.class_input = QComboBox()
-            self.class_input.addItem(UNASSIGNED_CLASS_LABEL, userData=UNASSIGNED_CLASS)
-            self.class_input.addItems(CLASS_OPTIONS)
-            form.addRow("القسم", self.class_input)
-
-        # --- حالة الدفع ---
-        self.status_input = QComboBox()
+        self.status_input = QComboBox(objectName="formCombo")
         for key, (label, _, _) in PAYMENT_STATUS.items():
             self.status_input.addItem(label, userData=key)
-        form.addRow("حالة الدفع", self.status_input)
 
-        outer.addLayout(form)
+        self.class_input = None
+        if self._is_edit:
+            self.class_input = QComboBox(objectName="formCombo")
+            self.class_input.addItem(UNASSIGNED_CLASS_LABEL, userData=UNASSIGNED_CLASS)
+            self.class_input.addItems(CLASS_OPTIONS)
+            grid.addLayout(_field_box("القسم", self.class_input), 0, 0)
+            grid.addLayout(_field_box("حالة الدفع", self.status_input), 0, 1)
+        else:
+            grid.addLayout(_field_box("حالة الدفع", self.status_input), 0, 0)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Save).setText("حفظ")
-        buttons.button(QDialogButtonBox.Cancel).setText("إلغاء")
-        buttons.accepted.connect(self._on_save)
-        buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
+        section.addLayout(grid)
+        return section
 
+    def _build_buttons_row(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        row.addStretch(1)
+        row.addWidget(make_button("إلغاء", "outlineButton", on_click=self.reject))
+        row.addWidget(make_button("حفظ", "primaryButton", on_click=self._on_save))
+        return row
+
+    # ------------------------------------------------------------------ #
+    # Fill / save
+    # ------------------------------------------------------------------ #
     def _fill_from(self, student: Student):
         self.last_name_input.setText(student.last_name)
         self.first_name_input.setText(student.first_name)

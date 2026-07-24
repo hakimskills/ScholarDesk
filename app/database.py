@@ -18,11 +18,30 @@ DB_PATH = os.path.join(DATA_DIR, "school.db")
 
 _connection: Optional[sqlite3.Connection] = None
 
+_CREATE_STUDENTS_TABLE = """
+    CREATE TABLE IF NOT EXISTS students (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name              TEXT NOT NULL DEFAULT '',
+        last_name               TEXT NOT NULL DEFAULT '',
+        file_number             TEXT NOT NULL DEFAULT '',
+        code                    TEXT NOT NULL DEFAULT '',
+        birth_date              TEXT NOT NULL DEFAULT '',
+        birth_place             TEXT NOT NULL DEFAULT '',
+        guardian                TEXT NOT NULL DEFAULT '',
+        address                 TEXT NOT NULL DEFAULT '',
+        phone                   TEXT NOT NULL DEFAULT '',
+        guardian_phone          TEXT NOT NULL DEFAULT '',
+        educational_institution TEXT NOT NULL DEFAULT '',
+        class_name              TEXT NOT NULL DEFAULT '',
+        joined_at               TEXT NOT NULL,
+        payment_status          TEXT NOT NULL DEFAULT 'unpaid'
+            CHECK (payment_status IN ('paid', 'unpaid'))
+    );
+"""
+
 # Columns added after the original release. Each is TEXT NOT NULL
 # DEFAULT '' so existing rows (and the "assign class later" flow,
 # where class_name starts empty) stay valid without extra checks.
-# NOTE: name here is the *new* schema; "name" (old single-field name)
-# is handled separately by _migrate_legacy_name_column below.
 _NEW_TEXT_COLUMNS = [
     "first_name",
     "last_name",
@@ -33,6 +52,7 @@ _NEW_TEXT_COLUMNS = [
     "address",
     "guardian_phone",
     "educational_institution",
+    "class_name",
 ]
 
 
@@ -49,77 +69,93 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db():
     """
-    Create tables if they don't exist yet. Safe to call on every
-    startup — CREATE TABLE IF NOT EXISTS is a no-op once the schema
-    is in place, and the migration helpers below only add what's
-    missing.
+    Create tables if they don't exist yet, and bring an older
+    database up to the current schema. Safe to call on every
+    startup — every step below is a no-op once the schema is already
+    current.
     """
     conn = get_connection()
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS students (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name              TEXT NOT NULL DEFAULT '',
-            last_name               TEXT NOT NULL DEFAULT '',
-            file_number             TEXT NOT NULL DEFAULT '',
-            code                    TEXT NOT NULL DEFAULT '',
-            birth_date              TEXT NOT NULL DEFAULT '',
-            birth_place             TEXT NOT NULL DEFAULT '',
-            guardian                TEXT NOT NULL DEFAULT '',
-            address                 TEXT NOT NULL DEFAULT '',
-            phone                   TEXT NOT NULL DEFAULT '',
-            guardian_phone          TEXT NOT NULL DEFAULT '',
-            educational_institution TEXT NOT NULL DEFAULT '',
-            class_name              TEXT NOT NULL DEFAULT '',
-            joined_at               TEXT NOT NULL,
-            payment_status          TEXT NOT NULL DEFAULT 'unpaid'
-                CHECK (payment_status IN ('paid', 'unpaid'))
-        );
-        """
-    )
+    conn.executescript(_CREATE_STUDENTS_TABLE)
     conn.commit()
+
+    _rebuild_if_legacy_name_column(conn)
     _migrate_new_columns(conn)
-    _migrate_legacy_name_column(conn)
 
 
 def _existing_columns(conn: sqlite3.Connection) -> set:
     return {row["name"] for row in conn.execute("PRAGMA table_info(students)")}
 
 
+def _rebuild_if_legacy_name_column(conn: sqlite3.Connection):
+    """
+    The very first schema stored a single NOT NULL 'name' column.
+    Simply adding new columns alongside it (via ALTER TABLE) leaves
+    that old constraint in place, which then breaks every insert
+    that doesn't set 'name' — exactly what the new create/update
+    code does. So instead of patching around it, rebuild the table
+    from scratch on the new schema and carry every row's data over,
+    folding the legacy 'name' into 'last_name' when needed. No-op
+    once the 'name' column is gone.
+    """
+    existing = _existing_columns(conn)
+    if "name" not in existing:
+        return
+
+    old_rows = conn.execute("SELECT * FROM students").fetchall()
+
+    conn.execute("ALTER TABLE students RENAME TO students_legacy")
+    conn.executescript(_CREATE_STUDENTS_TABLE)
+
+    for row in old_rows:
+        keys = row.keys()
+
+        def get(column, default=""):
+            return row[column] if column in keys and row[column] is not None else default
+
+        first_name = get("first_name")
+        last_name = get("last_name")
+        if not first_name and not last_name:
+            # Nothing split yet for this row — fall back to the old
+            # single-field name so the student keeps a readable name.
+            last_name = get("name")
+
+        payment_status = get("payment_status", "unpaid")
+        if payment_status not in ("paid", "unpaid"):
+            # Safety net only, so the CHECK constraint on the rebuilt
+            # table can't reject a row during migration.
+            payment_status = "unpaid"
+
+        conn.execute(
+            """
+            INSERT INTO students (
+                id, first_name, last_name, file_number, code, birth_date, birth_place,
+                guardian, address, phone, guardian_phone, educational_institution,
+                class_name, joined_at, payment_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                get("id"), first_name, last_name, get("file_number"), get("code"),
+                get("birth_date"), get("birth_place"), get("guardian"), get("address"),
+                get("phone"), get("guardian_phone"), get("educational_institution"),
+                get("class_name"), get("joined_at"), payment_status,
+            ),
+        )
+
+    conn.execute("DROP TABLE students_legacy")
+    conn.commit()
+
+
 def _migrate_new_columns(conn: sqlite3.Connection):
     """
-    Add any column introduced after the table was first created (e.g.
-    on a database from an older version of the app). No-op once the
-    schema already has them.
+    Add any column introduced after the table was first created, for
+    a database that already dropped 'name' (via an earlier version
+    of this migration) but predates one of the newer fields. No-op
+    once the schema already has them all.
     """
     existing = _existing_columns(conn)
     for column in _NEW_TEXT_COLUMNS:
         if column not in existing:
             conn.execute(f"ALTER TABLE students ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
-    if "class_name" not in existing:
-        conn.execute("ALTER TABLE students ADD COLUMN class_name TEXT NOT NULL DEFAULT ''")
-    conn.commit()
-
-
-def _migrate_legacy_name_column(conn: sqlite3.Connection):
-    """
-    The very first schema stored a single 'name' column. If it's
-    still around, fold it into last_name for any row that hasn't
-    been split yet, so existing students keep a readable name after
-    upgrading. Safe/no-op once there's nothing left to migrate.
-    """
-    existing = _existing_columns(conn)
-    if "name" not in existing:
-        return
-    conn.execute(
-        """
-        UPDATE students
-        SET last_name = name
-        WHERE (last_name IS NULL OR last_name = '')
-          AND (first_name IS NULL OR first_name = '')
-          AND name IS NOT NULL AND name != ''
-        """
-    )
     conn.commit()
 
 

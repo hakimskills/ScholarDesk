@@ -207,6 +207,95 @@ def build_stylesheet(font_family: str) -> str:
         background-color: {c.PRIMARY_DARK};
         padding-top: 11px;
     }}
+    QPushButton#outlineButton {{
+        background-color: {c.SURFACE};
+        color: {c.TEXT_SECONDARY};
+        border: 1px solid {c.BORDER_STRONG};
+        border-radius: {Radius.PILL}px;
+        padding: 10px 20px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#outlineButton:hover {{
+        background-color: {c.SURFACE_ALT};
+        border: 1px solid {c.TEXT_MUTED};
+        color: {c.TEXT_PRIMARY};
+    }}
+    QPushButton#outlineButton:pressed {{
+        padding-top: 11px;
+    }}
+
+    /* ---------- Form dialogs (add/edit student, etc.) ---------- */
+    QDialog#formDialog {{
+        background-color: {c.BG};
+    }}
+    QLabel#formTitle {{
+        font-size: 18px;
+        font-weight: 700;
+        color: {c.TEXT_PRIMARY};
+    }}
+    QLabel#formSubtitle {{
+        font-size: 12px;
+        color: {c.TEXT_SECONDARY};
+    }}
+    QLabel#formSectionTitle {{
+        font-size: 12.5px;
+        font-weight: 700;
+        color: {c.PRIMARY};
+    }}
+    QFrame#formHeaderSeparator {{
+        background-color: {c.BORDER};
+        max-height: 1px;
+        min-height: 1px;
+        border: none;
+    }}
+    QFrame#formCard {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.LG}px;
+    }}
+    QLabel#formFieldLabel {{
+        font-size: 11.5px;
+        font-weight: 600;
+        color: {c.TEXT_SECONDARY};
+    }}
+    QLabel#formFieldLabelRequired {{
+        font-size: 11.5px;
+        font-weight: 600;
+        color: {c.TEXT_SECONDARY};
+    }}
+    QLineEdit#formInput, QComboBox#formCombo, QDateEdit#formDate {{
+        background-color: {c.SURFACE_ALT};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.MD}px;
+        padding: 9px 12px;
+        font-size: 12.5px;
+        color: {c.TEXT_PRIMARY};
+        min-height: 18px;
+    }}
+    QLineEdit#formInput:hover, QComboBox#formCombo:hover, QDateEdit#formDate:hover {{
+        border: 1px solid {c.BORDER_STRONG};
+    }}
+    QLineEdit#formInput:focus, QComboBox#formCombo:focus, QDateEdit#formDate:focus {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.PRIMARY};
+    }}
+    QComboBox#formCombo::drop-down {{
+        border: none;
+        width: 26px;
+    }}
+    QComboBox#formCombo QAbstractItemView {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        selection-background-color: {c.PRIMARY_LIGHT};
+        selection-color: {c.PRIMARY_DARK};
+        outline: none;
+        padding: 4px;
+    }}
+    QDateEdit#formDate::drop-down {{
+        border: none;
+        width: 26px;
+    }}
 
     /* ---------- Cards ---------- */
     QFrame#statCard {{
