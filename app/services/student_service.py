@@ -19,9 +19,12 @@ def get_all_students(search: str = "", class_name: str = "", payment_status: str
     params: list = []
 
     if search:
-        query += " AND (name LIKE ? OR phone LIKE ? OR guardian LIKE ?)"
+        query += """ AND (
+            first_name LIKE ? OR last_name LIKE ? OR phone LIKE ? OR
+            guardian LIKE ? OR file_number LIKE ? OR code LIKE ?
+        )"""
         like = f"%{search}%"
-        params += [like, like, like]
+        params += [like, like, like, like, like, like]
     if class_name:
         query += " AND class_name = ?"
         params.append(class_name)
@@ -42,14 +45,27 @@ def get_student(student_id: int) -> Optional[Student]:
 
 
 def create_student(student: Student) -> Student:
+    """
+    Insert a new student. class_name is deliberately left as-is
+    (empty by default) — students are added without a class and get
+    assigned to one later via the edit dialog.
+    """
     conn = get_connection()
     cursor = conn.execute(
         """
-        INSERT INTO students (name, class_name, guardian, phone, joined_at, payment_status)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO students (
+            first_name, last_name, file_number, code, birth_date, birth_place,
+            guardian, address, phone, guardian_phone, educational_institution,
+            class_name, joined_at, payment_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (student.name, student.class_name, student.guardian, student.phone,
-         student.joined_at, student.payment_status),
+        (
+            student.first_name, student.last_name, student.file_number, student.code,
+            student.birth_date, student.birth_place, student.guardian, student.address,
+            student.phone, student.guardian_phone, student.educational_institution,
+            student.class_name, student.joined_at, student.payment_status,
+        ),
     )
     conn.commit()
     student.id = cursor.lastrowid
@@ -63,12 +79,25 @@ def update_student(student: Student) -> None:
     conn.execute(
         """
         UPDATE students
-        SET name = ?, class_name = ?, guardian = ?, phone = ?, joined_at = ?, payment_status = ?
+        SET first_name = ?, last_name = ?, file_number = ?, code = ?, birth_date = ?,
+            birth_place = ?, guardian = ?, address = ?, phone = ?, guardian_phone = ?,
+            educational_institution = ?, class_name = ?, joined_at = ?, payment_status = ?
         WHERE id = ?
         """,
-        (student.name, student.class_name, student.guardian, student.phone,
-         student.joined_at, student.payment_status, student.id),
+        (
+            student.first_name, student.last_name, student.file_number, student.code,
+            student.birth_date, student.birth_place, student.guardian, student.address,
+            student.phone, student.guardian_phone, student.educational_institution,
+            student.class_name, student.joined_at, student.payment_status, student.id,
+        ),
     )
+    conn.commit()
+
+
+def assign_class(student_id: int, class_name: str) -> None:
+    """Convenience helper for the "assign class later" flow."""
+    conn = get_connection()
+    conn.execute("UPDATE students SET class_name = ? WHERE id = ?", (class_name, student_id))
     conn.commit()
 
 
@@ -81,26 +110,3 @@ def delete_student(student_id: int) -> None:
 def count_students() -> int:
     row = get_connection().execute("SELECT COUNT(*) AS c FROM students").fetchone()
     return row["c"]
-
-
-def seed_demo_data() -> None:
-    """
-    Populate the table with the placeholder rows the UI used to
-    hardcode. Safe to call on every startup — it's a no-op once the
-    table already has data. Call this once from main.py if you want
-    to start with sample rows instead of an empty table.
-    """
-    if count_students() > 0:
-        return
-    demo = [
-        Student("ياسين بلحاج", "السنة 3", "محمد بلحاج", "0551 23 45 67", "12/09/2025", "paid"),
-        Student("مريم عبد الرحمان", "تحضيري", "سمير عبد الرحمان", "0662 34 56 78", "03/10/2025", "paid"),
-        Student("عمر شريف", "السنة 2", "كريم شريف", "0770 45 67 89", "20/09/2025", "unpaid"),
-        Student("لينا مرابط", "السنة 5", "فريد مرابط", "0554 56 78 90", "05/09/2025", "partial"),
-        Student("آدم بوزيد", "السنة 1", "ياسمين بوزيد", "0661 67 89 01", "18/09/2025", "paid"),
-        Student("نور الهدى قاسمي", "السنة 4", "عبد القادر قاسمي", "0772 78 90 12", "02/10/2025", "unpaid"),
-        Student("إلياس حمدي", "السنة 3", "رشيد حمدي", "0553 89 01 23", "14/09/2025", "paid"),
-        Student("سارة بن عيسى", "تحضيري", "نبيل بن عيسى", "0663 90 12 34", "27/09/2025", "partial"),
-    ]
-    for student in demo:
-        create_student(student)

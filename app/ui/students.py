@@ -5,6 +5,10 @@ app/ui/students.py
 The Students list page. Shows the student roster with live search,
 class/payment filters and per-row actions, backed by
 app/services/student_service.py (SQLite).
+
+New students are added without a class (class assignment happens
+later, via the edit dialog) — so this page also has to render and
+filter on an empty class_name gracefully.
 """
 
 from PySide6.QtWidgets import (
@@ -17,12 +21,17 @@ from PySide6.QtGui import QColor, QBrush
 
 from app.theme import Colors
 from app.common import ScrollPage, make_label, make_button
-from app.constants import PAYMENT_STATUS, STATUS_LABEL_TO_KEY, CLASS_OPTIONS
+from app.constants import PAYMENT_STATUS, STATUS_LABEL_TO_KEY, CLASS_OPTIONS, UNASSIGNED_CLASS_LABEL
+from app.models.student import UNASSIGNED_CLASS
 from app.services import student_service
 from app.ui.student_form import StudentFormDialog
 
 _COLUMNS = ["الاسم", "القسم", "ولي الأمر", "الهاتف", "تاريخ التسجيل", "حالة الدفع", "إجراءات"]
-_CLASS_OPTIONS = ["كل الأقسام"] + CLASS_OPTIONS
+
+# "كل الأقسام" (all) + real classes + "غير محدد" (students not yet
+# assigned to a class) at the end, so it's filterable too.
+_ALL_CLASSES_LABEL = "كل الأقسام"
+_CLASS_OPTIONS = [_ALL_CLASSES_LABEL] + CLASS_OPTIONS + [UNASSIGNED_CLASS_LABEL]
 _STATUS_OPTIONS = ["كل حالات الدفع"] + [label for label, _, _ in PAYMENT_STATUS.values()]
 
 
@@ -66,6 +75,8 @@ class StudentsPage(ScrollPage):
         return header
 
     def _open_add_form(self):
+        # No class field here on purpose — new students are registered
+        # first and assigned to a class later via the edit dialog.
         dialog = StudentFormDialog(parent=self)
         if dialog.exec() == StudentFormDialog.Accepted:
             self._reload()
@@ -103,13 +114,19 @@ class StudentsPage(ScrollPage):
 
     def _current_filters(self):
         class_name = self.class_filter.currentText()
-        if class_name == _CLASS_OPTIONS[0]:
+        if class_name == _ALL_CLASSES_LABEL:
             class_name = ""
+        elif class_name == UNASSIGNED_CLASS_LABEL:
+            class_name = UNASSIGNED_CLASS  # i.e. "" — filtered explicitly below
+        # NOTE: both "all" and "unassigned" resolve to an empty string
+        # for UNASSIGNED_CLASS, so we track "is a filter active" apart
+        # from the value itself.
+        filter_by_unassigned = self.class_filter.currentText() == UNASSIGNED_CLASS_LABEL
 
         status_label = self.status_filter.currentText()
         status_key = STATUS_LABEL_TO_KEY.get(status_label, "")
 
-        return self.search_box.text().strip(), class_name, status_key
+        return self.search_box.text().strip(), class_name, status_key, filter_by_unassigned
 
     # ------------------------------------------------------------------ #
     # Table
@@ -144,20 +161,21 @@ class StudentsPage(ScrollPage):
 
     def _reload(self):
         """Re-query the database with the current search/filter state and repaint the table."""
-        search, class_name, status_key = self._current_filters()
+        search, class_name, status_key, filter_by_unassigned = self._current_filters()
         students = student_service.get_all_students(
             search=search, class_name=class_name, payment_status=status_key,
         )
+        if filter_by_unassigned:
+            students = [s for s in students if not s.has_class]
 
         total = student_service.count_students()
         self.subtitle_label.setText(f"{total} طالب مسجل في المدرسة")
 
         self.table.setRowCount(len(students))
         for row, student in enumerate(students):
-            self.table.setCellWidget(row, 0, self._build_name_cell(student.name))
-            for col, value in enumerate(
-                (student.class_name, student.guardian, student.phone, student.joined_at), start=1
-            ):
+            self.table.setCellWidget(row, 0, self._build_name_cell(student.full_name))
+            self.table.setCellWidget(row, 1, self._build_class_cell(student.class_name))
+            for col, value in enumerate((student.guardian, student.phone, student.joined_at), start=2):
                 self.table.setItem(row, col, self._build_text_item(value))
             self.table.setCellWidget(row, 5, self._build_status_cell(student.payment_status))
             self.table.setCellWidget(row, 6, self._build_actions_cell(student.id))
@@ -167,6 +185,25 @@ class StudentsPage(ScrollPage):
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(12, 4, 12, 4)
         row.addWidget(make_label(name, style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};"))
+        row.addStretch(1)
+        return wrapper
+
+    def _build_class_cell(self, class_name: str) -> QWidget:
+        """Shows the class name, or a muted 'غير محدد' badge if not assigned yet."""
+        if class_name:
+            label = make_label(class_name, style=f"font-size: 12.5px; color: {Colors.TEXT_SECONDARY};")
+        else:
+            label = make_label(
+                UNASSIGNED_CLASS_LABEL,
+                style=(
+                    f"font-size: 11.5px; font-weight: 600; color: {Colors.TEXT_MUTED};"
+                    f"background-color: {Colors.SURFACE_ALT}; border-radius: 10px; padding: 3px 10px;"
+                ),
+            )
+        wrapper = QWidget()
+        row = QHBoxLayout(wrapper)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addWidget(label)
         row.addStretch(1)
         return wrapper
 
