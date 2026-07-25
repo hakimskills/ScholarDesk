@@ -22,3 +22,19 @@ CLASS_OPTIONS = ["تحضيري", "السنة 1", "السنة 2", "السنة 3",
 # Shown wherever a student hasn't been assigned to a class yet — new
 # students start this way; class is assigned later, not at creation.
 UNASSIGNED_CLASS_LABEL = "غير محدد"
+
+# --- Teachers ---
+GENDER_OPTIONS = ["ذكر", "أنثى"]
+
+SUBJECT_OPTIONS = [
+    "اللغة العربية",
+    "اللغة الفرنسية",
+    "اللغة الإنجليزية",
+    "الرياضيات",
+    "العلوم الطبيعية",
+    "التربية الإسلامية",
+    "التاريخ والجغرافيا",
+    "التربية البدنية",
+    "الفنون",
+    "الإعلام الآلي",
+]

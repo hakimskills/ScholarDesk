@@ -17,6 +17,7 @@ from app.database import init_db
 from app.theme import load_app_fonts, build_app_font, build_stylesheet
 from app.ui.dashboard import Dashboard
 from app.ui.students import StudentsPage
+from app.ui.teachers import TeachersPage
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -37,16 +38,19 @@ class MainWindow(QMainWindow):
 
         self.dashboard = Dashboard()
         self.students_page = StudentsPage()
+        self.teachers_page = TeachersPage()
 
         self._pages = {
             "dashboard": self.dashboard,
             "students": self.students_page,
+            "teachers": self.teachers_page,
         }
         for page in self._pages.values():
             self.stack.addWidget(page)
 
         self.dashboard.navigate_requested.connect(self.go_to_page)
         self.students_page.navigate_requested.connect(self.go_to_page)
+        self.teachers_page.navigate_requested.connect(self.go_to_page)
 
         self.go_to_page("dashboard")
 
@@ -57,7 +61,7 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    init_db()  # creates data/school.db and the students table on first run only
+    init_db()  # creates data/school.db and the students/teachers tables on first run only
 
     app = QApplication(sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)

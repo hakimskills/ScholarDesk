@@ -42,7 +42,7 @@ _CREATE_STUDENTS_TABLE = """
 # Columns added after the original release. Each is TEXT NOT NULL
 # DEFAULT '' so existing rows (and the "assign class later" flow,
 # where class_name starts empty) stay valid without extra checks.
-_NEW_TEXT_COLUMNS = [
+_NEW_STUDENT_COLUMNS = [
     "first_name",
     "last_name",
     "file_number",
@@ -53,6 +53,31 @@ _NEW_TEXT_COLUMNS = [
     "guardian_phone",
     "educational_institution",
     "class_name",
+]
+
+_CREATE_TEACHERS_TABLE = """
+    CREATE TABLE IF NOT EXISTS teachers (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name  TEXT NOT NULL DEFAULT '',
+        last_name   TEXT NOT NULL DEFAULT '',
+        gender      TEXT NOT NULL DEFAULT '',
+        subject     TEXT NOT NULL DEFAULT '',
+        birth_date  TEXT NOT NULL DEFAULT '',
+        address     TEXT NOT NULL DEFAULT '',
+        phone       TEXT NOT NULL DEFAULT '',
+        joined_at   TEXT NOT NULL
+    );
+"""
+
+# Same idea as _NEW_STUDENT_COLUMNS, kept separate so a future field
+# added to one table doesn't touch the other's migration.
+_NEW_TEACHER_COLUMNS = [
+    "first_name",
+    "last_name",
+    "gender",
+    "subject",
+    "birth_date",
+    "address",
 ]
 
 
@@ -76,14 +101,16 @@ def init_db():
     """
     conn = get_connection()
     conn.executescript(_CREATE_STUDENTS_TABLE)
+    conn.executescript(_CREATE_TEACHERS_TABLE)
     conn.commit()
 
     _rebuild_if_legacy_name_column(conn)
-    _migrate_new_columns(conn)
+    _migrate_new_columns(conn, "students", _NEW_STUDENT_COLUMNS)
+    _migrate_new_columns(conn, "teachers", _NEW_TEACHER_COLUMNS)
 
 
-def _existing_columns(conn: sqlite3.Connection) -> set:
-    return {row["name"] for row in conn.execute("PRAGMA table_info(students)")}
+def _existing_columns(conn: sqlite3.Connection, table: str) -> set:
+    return {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
 def _rebuild_if_legacy_name_column(conn: sqlite3.Connection):
@@ -97,7 +124,7 @@ def _rebuild_if_legacy_name_column(conn: sqlite3.Connection):
     folding the legacy 'name' into 'last_name' when needed. No-op
     once the 'name' column is gone.
     """
-    existing = _existing_columns(conn)
+    existing = _existing_columns(conn, "students")
     if "name" not in existing:
         return
 
@@ -145,17 +172,16 @@ def _rebuild_if_legacy_name_column(conn: sqlite3.Connection):
     conn.commit()
 
 
-def _migrate_new_columns(conn: sqlite3.Connection):
+def _migrate_new_columns(conn: sqlite3.Connection, table: str, columns: list):
     """
-    Add any column introduced after the table was first created, for
-    a database that already dropped 'name' (via an earlier version
-    of this migration) but predates one of the newer fields. No-op
-    once the schema already has them all.
+    Add any column introduced after a table was first created, for a
+    database that predates one of the newer fields. No-op once the
+    table already has them all.
     """
-    existing = _existing_columns(conn)
-    for column in _NEW_TEXT_COLUMNS:
+    existing = _existing_columns(conn, table)
+    for column in columns:
         if column not in existing:
-            conn.execute(f"ALTER TABLE students ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
     conn.commit()
 
 
