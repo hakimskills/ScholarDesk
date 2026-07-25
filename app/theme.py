@@ -41,6 +41,12 @@ class Colors:
     VIOLET = "#9B6BF2"
     VIOLET_LIGHT = "#F1EAFE"
 
+    # Dashboard menu tiles
+    TILE_ACCENT = "#149C9C"
+    TILE_ACCENT_HOVER = "#118585"
+    TILE_MUTED = "#8890B8"
+    TILE_MUTED_HOVER = "#767FAE"
+
     # Text
     TEXT_PRIMARY = "#1B2140"
     TEXT_SECONDARY = "#6B7189"
@@ -147,24 +153,7 @@ def build_stylesheet(font_family: str) -> str:
         height: 0px;
     }}
 
-    /* ---------- Top bar ---------- */
-    QLabel#greetingTitle {{
-        font-size: 20px;
-        font-weight: 700;
-        color: {c.TEXT_PRIMARY};
-    }}
-    QLabel#greetingSubtitle {{
-        font-size: 13px;
-        color: {c.TEXT_SECONDARY};
-    }}
-    QLabel#dateLabel {{
-        font-size: 12px;
-        color: {c.TEXT_SECONDARY};
-        background-color: {c.SURFACE};
-        border: 1px solid {c.BORDER};
-        border-radius: {Radius.PILL}px;
-        padding: 8px 16px;
-    }}
+    /* ---------- Search box (students list toolbar) ---------- */
     QLineEdit#searchBox {{
         background-color: {c.SURFACE};
         border: 1px solid {c.BORDER};
@@ -175,20 +164,6 @@ def build_stylesheet(font_family: str) -> str:
         color: {c.TEXT_PRIMARY};
     }}
     QLineEdit#searchBox:focus {{
-        border: 1px solid {c.PRIMARY};
-    }}
-    QPushButton#iconButton {{
-        background-color: {c.SURFACE};
-        border: 1px solid {c.BORDER};
-        border-radius: {Radius.PILL}px;
-        min-width: 38px;
-        max-width: 38px;
-        min-height: 38px;
-        max-height: 38px;
-        font-size: 15px;
-    }}
-    QPushButton#iconButton:hover {{
-        background-color: {c.PRIMARY_LIGHT};
         border: 1px solid {c.PRIMARY};
     }}
     QPushButton#primaryButton {{
@@ -259,11 +234,6 @@ def build_stylesheet(font_family: str) -> str:
         font-weight: 600;
         color: {c.TEXT_SECONDARY};
     }}
-    QLabel#formFieldLabelRequired {{
-        font-size: 11.5px;
-        font-weight: 600;
-        color: {c.TEXT_SECONDARY};
-    }}
     QLineEdit#formInput, QComboBox#formCombo, QDateEdit#formDate {{
         background-color: {c.SURFACE_ALT};
         border: 1px solid {c.BORDER};
@@ -297,86 +267,7 @@ def build_stylesheet(font_family: str) -> str:
         width: 26px;
     }}
 
-    /* ---------- Cards ---------- */
-    QFrame#statCard {{
-        background-color: {c.SURFACE};
-        border: 1px solid {c.BORDER};
-        border-radius: {Radius.LG}px;
-    }}
-    QFrame#statCard:hover {{
-        border: 1px solid {c.PRIMARY_LIGHT};
-    }}
-    QLabel#statIcon {{
-        border-radius: {Radius.MD}px;
-        font-size: 19px;
-        qproperty-alignment: AlignCenter;
-    }}
-    QLabel#statValue {{
-        font-size: 25px;
-        font-weight: 800;
-        color: {c.TEXT_PRIMARY};
-    }}
-    QLabel#statTitle {{
-        font-size: 12.5px;
-        color: {c.TEXT_SECONDARY};
-        font-weight: 500;
-    }}
-    QLabel#trendUp {{
-        color: {c.SUCCESS};
-        font-size: 11.5px;
-        font-weight: 700;
-        background-color: {c.SUCCESS_LIGHT};
-        border-radius: {Radius.SM}px;
-        padding: 2px 8px;
-    }}
-    QLabel#trendDown {{
-        color: {c.DANGER};
-        font-size: 11.5px;
-        font-weight: 700;
-        background-color: {c.DANGER_LIGHT};
-        border-radius: {Radius.SM}px;
-        padding: 2px 8px;
-    }}
-    QLabel#trendCaption {{
-        color: {c.TEXT_MUTED};
-        font-size: 11px;
-    }}
-
-    /* ---------- Section card ---------- */
-    QFrame#sectionCard {{
-        background-color: {c.SURFACE};
-        border: 1px solid {c.BORDER};
-        border-radius: {Radius.LG}px;
-    }}
-    QLabel#sectionTitle {{
-        font-size: 15px;
-        font-weight: 700;
-        color: {c.TEXT_PRIMARY};
-    }}
-    QLabel#sectionSubtitle {{
-        font-size: 11.5px;
-        color: {c.TEXT_MUTED};
-    }}
-    QFrame#sectionSeparator {{
-        background-color: {c.BORDER};
-        max-height: 1px;
-        min-height: 1px;
-        border: none;
-    }}
-    QPushButton#chipButton {{
-        background-color: {c.SURFACE_ALT};
-        border: 1px solid {c.BORDER};
-        color: {c.TEXT_SECONDARY};
-        border-radius: {Radius.PILL}px;
-        padding: 5px 14px;
-        font-size: 11.5px;
-        font-weight: 600;
-    }}
-    QPushButton#chipButton:checked {{
-        background-color: {c.PRIMARY};
-        color: {c.TEXT_ON_PRIMARY};
-        border: 1px solid {c.PRIMARY};
-    }}
+    /* ---------- Table card (students list) ---------- */
     QPushButton#linkButton {{
         background-color: transparent;
         border: none;
@@ -389,68 +280,25 @@ def build_stylesheet(font_family: str) -> str:
         text-decoration: underline;
     }}
 
-    /* ---------- Activity list ---------- */
-    QFrame#activityItem {{
-        background-color: transparent;
-        border-radius: {Radius.MD}px;
-    }}
-    QFrame#activityItem:hover {{
-        background-color: {c.SURFACE_ALT};
-    }}
-    QLabel#activityIcon {{
-        border-radius: {Radius.MD}px;
-        font-size: 15px;
-        qproperty-alignment: AlignCenter;
-    }}
-    QLabel#activityTitle {{
-        font-size: 12.5px;
-        font-weight: 600;
-        color: {c.TEXT_PRIMARY};
-    }}
-    QLabel#activityMeta {{
-        font-size: 11px;
-        color: {c.TEXT_MUTED};
-    }}
-    QLabel#activityTime {{
-        font-size: 11px;
-        color: {c.TEXT_MUTED};
-    }}
-
-    /* ---------- Payment status rows ---------- */
-    QLabel#rowLabel {{
-        font-size: 12.5px;
-        font-weight: 600;
-        color: {c.TEXT_PRIMARY};
-    }}
-    QLabel#rowValue {{
-        font-size: 12.5px;
-        font-weight: 700;
-        color: {c.TEXT_SECONDARY};
-    }}
-    QProgressBar#statusBar {{
+    /* ---------- Dashboard menu tiles ---------- */
+    QPushButton#menuTile {{
         border: none;
-        border-radius: 5px;
-        background-color: {c.SURFACE_ALT};
-        min-height: 10px;
-        max-height: 10px;
+        border-radius: {Radius.LG}px;
+        color: {c.PRIMARY_TEXT_ON};
+        font-size: 14px;
+        font-weight: 700;
+        padding: 12px 18px;
     }}
-    QProgressBar#statusBar::chunk {{
-        border-radius: 5px;
+    QPushButton#menuTile[variant="accent"] {{
+        background-color: {c.TILE_ACCENT};
     }}
-
-    /* ---------- Quick actions ---------- */
-    QPushButton#quickAction {{
-        background-color: {c.SURFACE_ALT};
-        border: 1px solid {c.BORDER};
-        border-radius: {Radius.MD}px;
-        color: {c.TEXT_PRIMARY};
-        font-size: 12px;
-        font-weight: 600;
-        padding: 14px 6px;
+    QPushButton#menuTile[variant="accent"]:hover {{
+        background-color: {c.TILE_ACCENT_HOVER};
     }}
-    QPushButton#quickAction:hover {{
-        background-color: {c.PRIMARY_LIGHT};
-        border: 1px solid {c.PRIMARY};
-        color: {c.PRIMARY_DARK};
+    QPushButton#menuTile[variant="muted"] {{
+        background-color: {c.TILE_MUTED};
+    }}
+    QPushButton#menuTile[variant="muted"]:hover {{
+        background-color: {c.TILE_MUTED_HOVER};
     }}
     """
