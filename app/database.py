@@ -80,6 +80,39 @@ _NEW_TEACHER_COLUMNS = [
     "address",
 ]
 
+_CREATE_GROUPS_TABLE = """
+    CREATE TABLE IF NOT EXISTS groups (
+        id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+        level                     TEXT NOT NULL DEFAULT '',
+        name                      TEXT NOT NULL DEFAULT '',
+        subject                   TEXT NOT NULL DEFAULT '',
+        sessions_per_round        INTEGER NOT NULL DEFAULT 0,
+        duration_hours            REAL NOT NULL DEFAULT 0,
+        teacher_id                INTEGER,
+        student_amount            REAL NOT NULL DEFAULT 0,
+        teacher_pay_by_percentage INTEGER NOT NULL DEFAULT 0,
+        teacher_student_amount    REAL NOT NULL DEFAULT 0,
+        branch                    TEXT NOT NULL DEFAULT '',
+        note                      TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
+    );
+"""
+
+# Many-to-many: one group has many students, and a student can be in
+# more than one group (a different فوج than their main class_name).
+# ON DELETE CASCADE means deleting a group or a student automatically
+# cleans up its membership rows here — no orphaned rows to manage by
+# hand in group_service.py.
+_CREATE_GROUP_STUDENTS_TABLE = """
+    CREATE TABLE IF NOT EXISTS group_students (
+        group_id   INTEGER NOT NULL,
+        student_id INTEGER NOT NULL,
+        PRIMARY KEY (group_id, student_id),
+        FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    );
+"""
+
 
 def get_connection() -> sqlite3.Connection:
     """Return the shared SQLite connection, opening it on first use."""
@@ -100,13 +133,28 @@ def init_db():
     current.
     """
     conn = get_connection()
-    conn.executescript(_CREATE_STUDENTS_TABLE)
-    conn.executescript(_CREATE_TEACHERS_TABLE)
-    conn.commit()
 
+    # students must be fully migrated to its final shape BEFORE any
+    # table with a foreign key into it (group_students) gets created.
+    # SQLite auto-rewrites other tables' FK references when a table
+    # gets renamed (as the legacy-name rebuild below does), so
+    # creating group_students first would have its FK silently
+    # repointed at the temporary "students_legacy" table and then
+    # break once that gets dropped.
+    conn.executescript(_CREATE_STUDENTS_TABLE)
+    conn.commit()
     _rebuild_if_legacy_name_column(conn)
     _migrate_new_columns(conn, "students", _NEW_STUDENT_COLUMNS)
+
+    conn.executescript(_CREATE_TEACHERS_TABLE)
+    conn.executescript(_CREATE_GROUPS_TABLE)
+    conn.executescript(_CREATE_GROUP_STUDENTS_TABLE)
+    conn.commit()
     _migrate_new_columns(conn, "teachers", _NEW_TEACHER_COLUMNS)
+    # groups/group_students are new tables with no legacy schema to
+    # migrate from yet — add a _NEW_GROUP_COLUMNS list + a
+    # _migrate_new_columns(conn, "groups", ...) call here if/when a
+    # column gets added after this release.
 
 
 def _existing_columns(conn: sqlite3.Connection, table: str) -> set:
