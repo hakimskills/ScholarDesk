@@ -27,21 +27,30 @@ from app.models.group import Group
 from app.models.student import Student
 
 
-def get_all_groups(search: str = "", level: str = "", subject: str = "", teacher_id: Optional[int] = None) -> List[Group]:
-    """Return groups matching the optional filters, most recent first."""
+def get_all_groups(search: str = "", level: str = "", subject: str = "", section: str = "", teacher_id: Optional[int] = None) -> List[Group]:
+    """Return groups matching the optional filters, most recent first.
+
+    level/subject are freeform text (no fixed list), so they're
+    matched as substrings here rather than exact values. section
+    comes from a small fixed dropdown (A-F...), so it's matched
+    exactly.
+    """
     query = "SELECT * FROM groups WHERE 1=1"
     params: list = []
 
     if search:
-        query += " AND (name LIKE ? OR level LIKE ? OR subject LIKE ?)"
+        query += " AND (level LIKE ? OR subject LIKE ? OR section LIKE ?)"
         like = f"%{search}%"
         params += [like, like, like]
     if level:
-        query += " AND level = ?"
-        params.append(level)
+        query += " AND level LIKE ?"
+        params.append(f"%{level}%")
     if subject:
-        query += " AND subject = ?"
-        params.append(subject)
+        query += " AND subject LIKE ?"
+        params.append(f"%{subject}%")
+    if section:
+        query += " AND section = ?"
+        params.append(section)
     if teacher_id is not None:
         query += " AND teacher_id = ?"
         params.append(teacher_id)
@@ -63,13 +72,13 @@ def create_group(group: Group, student_ids: Optional[List[int]] = None) -> Group
     cursor = conn.execute(
         """
         INSERT INTO groups (
-            level, name, subject, sessions_per_round, duration_hours, teacher_id,
+            level, subject, section, sessions_per_round, duration_hours, teacher_id,
             student_amount, teacher_pay_by_percentage, teacher_student_amount, branch, note
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            group.level, group.name, group.subject, group.sessions_per_round,
+            group.level, group.subject, group.section, group.sessions_per_round,
             group.duration_hours, group.teacher_id, group.student_amount,
             int(group.teacher_pay_by_percentage), group.teacher_student_amount,
             group.branch, group.note,
@@ -88,13 +97,13 @@ def update_group(group: Group, student_ids: Optional[List[int]] = None) -> None:
     conn.execute(
         """
         UPDATE groups
-        SET level = ?, name = ?, subject = ?, sessions_per_round = ?, duration_hours = ?,
+        SET level = ?, subject = ?, section = ?, sessions_per_round = ?, duration_hours = ?,
             teacher_id = ?, student_amount = ?, teacher_pay_by_percentage = ?,
             teacher_student_amount = ?, branch = ?, note = ?
         WHERE id = ?
         """,
         (
-            group.level, group.name, group.subject, group.sessions_per_round,
+            group.level, group.subject, group.section, group.sessions_per_round,
             group.duration_hours, group.teacher_id, group.student_amount,
             int(group.teacher_pay_by_percentage), group.teacher_student_amount,
             group.branch, group.note, group.id,
