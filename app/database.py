@@ -84,8 +84,8 @@ _CREATE_GROUPS_TABLE = """
     CREATE TABLE IF NOT EXISTS groups (
         id                        INTEGER PRIMARY KEY AUTOINCREMENT,
         level                     TEXT NOT NULL DEFAULT '',
-        name                      TEXT NOT NULL DEFAULT '',
         subject                   TEXT NOT NULL DEFAULT '',
+        section                   TEXT NOT NULL DEFAULT '',
         sessions_per_round        INTEGER NOT NULL DEFAULT 0,
         duration_hours            REAL NOT NULL DEFAULT 0,
         teacher_id                INTEGER,
@@ -97,6 +97,15 @@ _CREATE_GROUPS_TABLE = """
         FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE SET NULL
     );
 """
+
+# Columns added after groups' original release — same pattern as
+# _NEW_STUDENT_COLUMNS / _NEW_TEACHER_COLUMNS. (A database from that
+# first version also still has a now-unused 'name' column; it's
+# NOT NULL DEFAULT '' though, so leaving it — nothing here ever
+# inserts into it anymore, and the default satisfies NOT NULL, so it
+# just sits there empty and harmless rather than needing a rebuild
+# like the students table's old 'name' column did.)
+_NEW_GROUP_COLUMNS = ["section"]
 
 # Many-to-many: one group has many students, and a student can be in
 # more than one group (a different فوج than their main class_name).
@@ -151,10 +160,7 @@ def init_db():
     conn.executescript(_CREATE_GROUP_STUDENTS_TABLE)
     conn.commit()
     _migrate_new_columns(conn, "teachers", _NEW_TEACHER_COLUMNS)
-    # groups/group_students are new tables with no legacy schema to
-    # migrate from yet — add a _NEW_GROUP_COLUMNS list + a
-    # _migrate_new_columns(conn, "groups", ...) call here if/when a
-    # column gets added after this release.
+    _migrate_new_columns(conn, "groups", _NEW_GROUP_COLUMNS)
 
 
 def _existing_columns(conn: sqlite3.Connection, table: str) -> set:
