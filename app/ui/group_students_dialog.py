@@ -21,7 +21,7 @@ a bolted-on picker.
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLineEdit,
-    QListWidget, QListWidgetItem,
+    QListWidget, QListWidgetItem, QAbstractItemView,
 )
 from PySide6.QtCore import Qt
 
@@ -79,6 +79,13 @@ class GroupStudentsDialog(QDialog):
         self.student_list.setObjectName("studentPickList")
         self.student_list.setLayoutDirection(Qt.RightToLeft)
         self.student_list.setMinimumHeight(320)
+        # This list only needs the checkbox — row selection isn't used
+        # for anything, and Qt's default selection highlight was
+        # covering the name text in a color that made it unreadable.
+        # Turning selection off entirely fixes that; the checkbox
+        # itself still toggles normally on click regardless of this.
+        self.student_list.setSelectionMode(QAbstractItemView.NoSelection)
+        self.student_list.setFocusPolicy(Qt.NoFocus)
         self.student_list.itemChanged.connect(self._update_count_label)
         card_layout.addWidget(self.student_list, 1)
 

@@ -284,10 +284,21 @@ class GroupsPage(ScrollPage):
         menu.exec(self.table.viewport().mapToGlobal(pos))
 
     def _confirm_delete(self, group_id: int):
-        answer = QMessageBox.question(
-            self, "تأكيد الحذف", "هل أنت متأكد من حذف هذا الفوج؟",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if answer == QMessageBox.Yes:
+        # QMessageBox.question(...) always renders Qt's built-in
+        # English "Yes"/"No" labels — there's no way to relabel those
+        # through the static helper, so the box is built by hand here
+        # and given its own "نعم"/"لا" buttons instead.
+        box = QMessageBox(self)
+        box.setWindowTitle("تأكيد الحذف")
+        box.setText("هل أنت متأكد من حذف هذا الفوج؟")
+        box.setIcon(QMessageBox.Question)
+        box.setLayoutDirection(Qt.RightToLeft)
+
+        yes_button = box.addButton("نعم", QMessageBox.YesRole)
+        no_button = box.addButton("لا", QMessageBox.NoRole)
+        box.setDefaultButton(no_button)
+
+        box.exec()
+        if box.clickedButton() == yes_button:
             group_service.delete_group(group_id)
             self._reload()

@@ -382,6 +382,12 @@ def build_stylesheet(font_family: str) -> str:
     QListWidget#studentPickList::item:hover {{
         background-color: {c.SURFACE};
     }}
+    QListWidget#studentPickList::item:selected,
+    QListWidget#studentPickList::item:selected:active,
+    QListWidget#studentPickList::item:selected:!active {{
+        background-color: {c.PRIMARY_LIGHT};
+        color: {c.TEXT_PRIMARY};
+    }}
     QListWidget#studentPickList::indicator {{
         width: 18px;
         height: 18px;

@@ -247,10 +247,17 @@ class StudentsPage(ScrollPage):
         return wrapper
 
     def _confirm_delete(self, student_id: int):
-        answer = QMessageBox.question(
-            self, "تأكيد الحذف", "هل أنت متأكد من حذف هذا الطالب؟",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if answer == QMessageBox.Yes:
+        box = QMessageBox(self)
+        box.setWindowTitle("تأكيد الحذف")
+        box.setText("هل أنت متأكد من حذف هذا التلميذ؟")
+        box.setIcon(QMessageBox.Question)
+        box.setLayoutDirection(Qt.RightToLeft)
+       
+        yes_button = box.addButton("نعم", QMessageBox.YesRole)
+        no_button = box.addButton("لا", QMessageBox.NoRole)
+        box.setDefaultButton(no_button)
+       
+        box.exec()
+        if box.clickedButton() == yes_button:
             student_service.delete_student(student_id)
             self._reload()
