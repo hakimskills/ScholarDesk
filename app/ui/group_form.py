@@ -7,9 +7,13 @@ form: المستوى (free text), المادة (free text), الفوج (a fixed
 section-letter dropdown, e.g. "A"), عدد الحصص/الجولة, المدة (سا),
 الأستاذ (with the same "+" quick-add-teacher shortcut shown in the
 photo), مبلغ التلميذ, مدفوعات الأستاذ بالنسبة المئوية, مبلغ
-الأستاذ/تلميذ (with a live النسبة = ...% readout), الفرع, الملاحظة —
-plus a student picker, since a group holds MANY students (unlike the
-teacher field, which holds exactly one).
+الأستاذ/تلميذ (with a live النسبة = ...% readout), الفرع, الملاحظة.
+
+This dialog only ever touches the group's own fields — it does NOT
+manage which students belong to the group. Membership is edited
+separately, via a right-click on the group's row in app/ui/groups.py
+(see app/ui/group_students_dialog.py), so a brand-new group is always
+created empty and students get added to it afterwards.
 
 The class's own display name isn't a separate field — it's always
 المستوى + المادة + الفوج, in that order (e.g. "3 ابتدائي رياضيات A"),
@@ -26,14 +30,14 @@ Accepted.
 
 from PySide6.QtWidgets import (
     QDialog, QGridLayout, QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox,
-    QCheckBox, QListWidget, QListWidgetItem, QMessageBox, QVBoxLayout,
-    QHBoxLayout, QFrame, QWidget, QLabel, QScrollArea,
+    QCheckBox, QMessageBox, QVBoxLayout, QHBoxLayout, QFrame, QWidget,
+    QLabel, QScrollArea,
 )
 from PySide6.QtCore import Qt
 
 from app.constants import SECTION_OPTIONS
 from app.models.group import Group
-from app.services import group_service, teacher_service, student_service
+from app.services import group_service, teacher_service
 from app.common import make_label, make_button
 from app.ui.teacher_form import TeacherFormDialog
 
@@ -111,8 +115,6 @@ class GroupFormDialog(QDialog):
         card_layout.addWidget(self._separator())
         card_layout.addLayout(self._build_teacher_payment_section())
         card_layout.addWidget(self._separator())
-        card_layout.addLayout(self._build_students_section())
-        card_layout.addWidget(self._separator())
         card_layout.addLayout(self._build_notes_section())
 
         scroll = QScrollArea()
@@ -141,9 +143,14 @@ class GroupFormDialog(QDialog):
         header = QVBoxLayout()
         header.setSpacing(2)
         title = "تعديل الفوج" if self._is_edit else "إضافة فوج جديد"
-        subtitle = "عدّل بيانات الفوج، الأستاذ والتلاميذ." if self._is_edit else "أدخل بيانات الفوج، وحدّد الأستاذ والتلاميذ."
+        subtitle = "عدّل بيانات الفوج والأستاذ." if self._is_edit else "أدخل بيانات الفوج وحدّد الأستاذ."
         header.addWidget(make_label(title, "formTitle", align=Qt.AlignRight))
         header.addWidget(make_label(subtitle, "formSubtitle", align=Qt.AlignRight))
+        if self._is_edit:
+            header.addWidget(make_label(
+                "لإضافة أو حذف تلاميذ من هذا الفوج، أغلق هذه النافذة وانقر بزر الفأرة الأيمن على الفوج في الجدول.",
+                style="color: #9CA0B8; font-size: 11px;", align=Qt.AlignRight,
+            ))
         return header
 
     def _separator(self) -> QFrame:
@@ -286,56 +293,6 @@ class GroupFormDialog(QDialog):
         else:
             self.percentage_label.setText("النسبة = —")
 
-    # --- التلاميذ (فوج واحد يضم عدة تلاميذ) ---
-    def _build_students_section(self) -> QVBoxLayout:
-        section = QVBoxLayout()
-        section.setSpacing(10)
-        section.addWidget(self._section_title("التلاميذ"))
-
-        self.student_search_input = _make_line_edit("🔍  ابحث عن تلميذ لإضافته...")
-        self.student_search_input.textChanged.connect(self._filter_student_list)
-        section.addWidget(self.student_search_input)
-
-        self.student_list = QListWidget()
-        self.student_list.setLayoutDirection(Qt.RightToLeft)
-        self.student_list.setMaximumHeight(180)
-        self._all_students = student_service.get_all_students()
-        for student in self._all_students:
-            item = QListWidgetItem(student.full_name)
-            item.setData(Qt.UserRole, student.id)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
-            self.student_list.addItem(item)
-        self.student_list.itemChanged.connect(self._update_students_count_label)
-        section.addWidget(self.student_list)
-
-        self.students_count_label = make_label("لم يتم اختيار أي تلميذ بعد", style="color: #6B7189; font-size: 11.5px;")
-        section.addWidget(self.students_count_label)
-
-        return section
-
-    def _filter_student_list(self, text: str):
-        text = text.strip()
-        for row in range(self.student_list.count()):
-            item = self.student_list.item(row)
-            item.setHidden(bool(text) and text not in item.text())
-
-    def _update_students_count_label(self, *_):
-        count = sum(
-            1 for row in range(self.student_list.count())
-            if self.student_list.item(row).checkState() == Qt.Checked
-        )
-        self.students_count_label.setText(
-            f"{count} تلميذ مختار" if count else "لم يتم اختيار أي تلميذ بعد"
-        )
-
-    def _selected_student_ids(self):
-        return [
-            self.student_list.item(row).data(Qt.UserRole)
-            for row in range(self.student_list.count())
-            if self.student_list.item(row).checkState() == Qt.Checked
-        ]
-
     # --- الملاحظة ---
     def _build_notes_section(self) -> QVBoxLayout:
         section = QVBoxLayout()
@@ -375,14 +332,6 @@ class GroupFormDialog(QDialog):
         self.teacher_student_amount_input.setValue(group.teacher_student_amount)
         self.note_input.setText(group.note)
 
-        if group.id is not None:
-            member_ids = set(group_service.get_group_student_ids(group.id))
-            for row in range(self.student_list.count()):
-                item = self.student_list.item(row)
-                if item.data(Qt.UserRole) in member_ids:
-                    item.setCheckState(Qt.Checked)
-            self._update_students_count_label()
-
         self._update_name_preview()
 
     def _on_save(self):
@@ -406,11 +355,17 @@ class GroupFormDialog(QDialog):
         group.branch = self.branch_input.text().strip()
         group.note = self.note_input.text().strip()
 
-        student_ids = self._selected_student_ids()
+        # Note: no student_ids passed here on purpose. A new group is
+        # created empty (create_group's default of "no students" is
+        # exactly what we want) and an existing group's roster is left
+        # untouched (update_group only touches membership when
+        # student_ids is not None) — membership is only ever edited
+        # from the "إدارة التلاميذ" dialog via a right-click on the
+        # group's row in app/ui/groups.py.
         if group.id is None:
-            group_service.create_group(group, student_ids=student_ids)
+            group_service.create_group(group)
         else:
-            group_service.update_group(group, student_ids=student_ids)
+            group_service.update_group(group)
 
         self._group = group
         self.accept()
