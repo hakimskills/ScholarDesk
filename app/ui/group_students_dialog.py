@@ -76,6 +76,7 @@ class GroupStudentsDialog(QDialog):
         card_layout.addWidget(self.search_input)
 
         self.student_list = QListWidget()
+        self.student_list.setObjectName("studentPickList")
         self.student_list.setLayoutDirection(Qt.RightToLeft)
         self.student_list.setMinimumHeight(320)
         self.student_list.itemChanged.connect(self._update_count_label)

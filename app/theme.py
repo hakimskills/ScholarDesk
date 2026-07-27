@@ -301,4 +301,99 @@ def build_stylesheet(font_family: str) -> str:
     QPushButton#menuTile[variant="muted"]:hover {{
         background-color: {c.TILE_MUTED_HOVER};
     }}
+
+    /* ---------- Popups: context menus & message boxes ----------
+       QWidget's global "background-color: transparent" rule above
+       leaves QMenu/QMessageBox with no real paint surface on some
+       platforms, which is what renders as a solid black popup.
+       These give both an explicit, themed background instead. */
+    QMenu {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.MD}px;
+        padding: 6px;
+    }}
+    QMenu::item {{
+        background-color: transparent;
+        color: {c.TEXT_PRIMARY};
+        padding: 8px 14px;
+        border-radius: {Radius.SM}px;
+        font-size: 12.5px;
+    }}
+    QMenu::item:selected {{
+        background-color: {c.PRIMARY_LIGHT};
+        color: {c.PRIMARY_DARK};
+    }}
+    QMenu::item:disabled {{
+        color: {c.TEXT_MUTED};
+    }}
+    QMenu::separator {{
+        height: 1px;
+        background-color: {c.BORDER};
+        margin: 6px 4px;
+    }}
+
+    QMessageBox {{
+        background-color: {c.SURFACE};
+    }}
+    QMessageBox QLabel {{
+        color: {c.TEXT_PRIMARY};
+        font-size: 12.5px;
+        background-color: transparent;
+    }}
+    QMessageBox QPushButton {{
+        background-color: {c.SURFACE_ALT};
+        color: {c.TEXT_PRIMARY};
+        border: 1px solid {c.BORDER_STRONG};
+        border-radius: {Radius.PILL}px;
+        padding: 8px 18px;
+        font-size: 12.5px;
+        font-weight: 600;
+        min-width: 72px;
+    }}
+    QMessageBox QPushButton:hover {{
+        background-color: {c.PRIMARY_LIGHT};
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY_DARK};
+    }}
+    QMessageBox QPushButton:pressed {{
+        padding-top: 9px;
+    }}
+
+    /* ---------- Checkable student picker (group_students_dialog) ----------
+       Same transparent-QWidget issue as the popups above: with no
+       explicit styling, QListWidget's built-in checkbox indicator can
+       end up nearly invisible against the app's background. Give it
+       a clearly-bordered box that's obviously empty when unchecked
+       and clearly filled (brand color) when checked. */
+    QListWidget#studentPickList {{
+        background-color: {c.SURFACE_ALT};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.MD}px;
+        padding: 6px;
+        font-size: 12.5px;
+        color: {c.TEXT_PRIMARY};
+    }}
+    QListWidget#studentPickList::item {{
+        padding: 9px 8px;
+        border-radius: {Radius.SM}px;
+        margin: 1px 0px;
+    }}
+    QListWidget#studentPickList::item:hover {{
+        background-color: {c.SURFACE};
+    }}
+    QListWidget#studentPickList::indicator {{
+        width: 18px;
+        height: 18px;
+        border: 2px solid {c.BORDER_STRONG};
+        border-radius: 5px;
+        background-color: {c.SURFACE};
+    }}
+    QListWidget#studentPickList::indicator:hover {{
+        border: 2px solid {c.PRIMARY};
+    }}
+    QListWidget#studentPickList::indicator:checked {{
+        border: 2px solid {c.PRIMARY};
+        background-color: {c.PRIMARY};
+    }}
     """
