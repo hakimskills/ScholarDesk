@@ -3,12 +3,17 @@
 app/ui/group_form.py
 
 Add / edit فوج (class/group) dialog — fields mirror the reference
-form: المستوى, الفوج, المادة, عدد الحصص/الجولة, المدة (سا), الأستاذ
-(with the same "+" quick-add-teacher shortcut shown in the photo),
-مبلغ التلميذ, مدفوعات الأستاذ بالنسبة المئوية, مبلغ الأستاذ/تلميذ
-(with a live النسبة = ...% readout), الفرع, الملاحظة — plus a
-student picker, since a group holds MANY students (unlike the
+form: المستوى (free text), المادة (free text), الفوج (a fixed
+section-letter dropdown, e.g. "A"), عدد الحصص/الجولة, المدة (سا),
+الأستاذ (with the same "+" quick-add-teacher shortcut shown in the
+photo), مبلغ التلميذ, مدفوعات الأستاذ بالنسبة المئوية, مبلغ
+الأستاذ/تلميذ (with a live النسبة = ...% readout), الفرع, الملاحظة —
+plus a student picker, since a group holds MANY students (unlike the
 teacher field, which holds exactly one).
+
+The class's own display name isn't a separate field — it's always
+المستوى + المادة + الفوج, in that order (e.g. "3 ابتدائي رياضيات A"),
+computed by Group.display_name and previewed live as you type/pick.
 
 Styled via the same formDialog/formCard/formInput rules in
 app/theme.py used by student_form.py / teacher_form.py, including
@@ -26,7 +31,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 
-from app.constants import CLASS_OPTIONS, SUBJECT_OPTIONS
+from app.constants import SECTION_OPTIONS
 from app.models.group import Group
 from app.services import group_service, teacher_service, student_service
 from app.common import make_label, make_button
@@ -159,9 +164,18 @@ class GroupFormDialog(QDialog):
         grid.setHorizontalSpacing(20)
         grid.setVerticalSpacing(14)
 
-        self.level_input = _make_combo(CLASS_OPTIONS)
-        self.name_input = _make_line_edit()
-        self.subject_input = _make_combo(SUBJECT_OPTIONS)
+        # المستوى and المادة are free text — schools name levels and
+        # subjects however they want (e.g. "3 ابتدائي"), there's no
+        # fixed list for either. الفوج is the one fixed-list part:
+        # a letter. The three combine, in this order, into the
+        # class's full name (see _update_name_preview).
+        self.level_input = _make_line_edit("مثال: 3 ابتدائي")
+        self.subject_input = _make_line_edit("مثال: رياضيات")
+        self.section_input = _make_combo(SECTION_OPTIONS)
+
+        self.level_input.textChanged.connect(self._update_name_preview)
+        self.subject_input.textChanged.connect(self._update_name_preview)
+        self.section_input.currentIndexChanged.connect(self._update_name_preview)
 
         self.sessions_input = QSpinBox(objectName="formInput")
         self.sessions_input.setRange(0, 100)
@@ -178,8 +192,8 @@ class GroupFormDialog(QDialog):
         self.branch_input = _make_line_edit()
 
         grid.addLayout(_field_box("المستوى *", self.level_input), 0, 0)
-        grid.addLayout(_field_box("الفوج *", self.name_input), 0, 1)
-        grid.addLayout(_field_box("المادة", self.subject_input), 1, 0)
+        grid.addLayout(_field_box("المادة *", self.subject_input), 0, 1)
+        grid.addLayout(_field_box("الفوج *", self.section_input), 1, 0)
         grid.addLayout(_field_box("عدد الحصص/الجولة", self.sessions_input), 1, 1)
         grid.addLayout(_field_box("المدة (سا)", self.duration_input), 2, 0)
         grid.addLayout(_field_box("الفرع", self.branch_input), 2, 1)
@@ -187,7 +201,21 @@ class GroupFormDialog(QDialog):
         grid.setColumnStretch(1, 1)
 
         section.addLayout(grid)
+
+        self.name_preview_label = make_label(
+            "اسم الفوج: —", style="color: #4F5FF0; font-weight: 700;", align=Qt.AlignRight,
+        )
+        section.addWidget(self.name_preview_label)
+
         return section
+
+    def _update_name_preview(self, *_):
+        preview = Group(
+            level=self.level_input.text().strip(),
+            subject=self.subject_input.text().strip(),
+            section=self.section_input.currentData() or "",
+        ).display_name
+        self.name_preview_label.setText(f"اسم الفوج: {preview}" if preview else "اسم الفوج: —")
 
     # --- الأستاذ والمدفوعات ---
     def _build_teacher_payment_section(self) -> QVBoxLayout:
@@ -330,11 +358,10 @@ class GroupFormDialog(QDialog):
     # Fill / save
     # ------------------------------------------------------------------ #
     def _fill_from(self, group: Group):
-        level_idx = self.level_input.findData(group.level)
-        self.level_input.setCurrentIndex(max(level_idx, 0))
-        self.name_input.setText(group.name)
-        subject_idx = self.subject_input.findData(group.subject)
-        self.subject_input.setCurrentIndex(max(subject_idx, 0))
+        self.level_input.setText(group.level)
+        self.subject_input.setText(group.subject)
+        section_idx = self.section_input.findData(group.section)
+        self.section_input.setCurrentIndex(max(section_idx, 0))
         self.sessions_input.setValue(group.sessions_per_round)
         self.duration_input.setValue(group.duration_hours)
         self.branch_input.setText(group.branch)
@@ -356,18 +383,20 @@ class GroupFormDialog(QDialog):
                     item.setCheckState(Qt.Checked)
             self._update_students_count_label()
 
-    def _on_save(self):
-        level = self.level_input.currentData() or ""
-        name = self.name_input.text().strip()
+        self._update_name_preview()
 
-        if not level or not name:
-            QMessageBox.warning(self, "بيانات ناقصة", "الرجاء اختيار المستوى وتسمية الفوج.")
+    def _on_save(self):
+        level = self.level_input.text().strip()
+        section = self.section_input.currentData() or ""
+
+        if not level or not section:
+            QMessageBox.warning(self, "بيانات ناقصة", "الرجاء إدخال المستوى واختيار الفوج (A, B, C...).")
             return
 
         group = self._group or Group()
         group.level = level
-        group.name = name
-        group.subject = self.subject_input.currentData() or ""
+        group.subject = self.subject_input.text().strip()
+        group.section = section
         group.sessions_per_round = self.sessions_input.value()
         group.duration_hours = self.duration_input.value()
         group.teacher_id = self.teacher_input.currentData()
