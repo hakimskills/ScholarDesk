@@ -38,3 +38,18 @@ SUBJECT_OPTIONS = [
     "الفنون",
     "الإعلام الآلي",
 ]
+
+# --- Groups/classes (فوج) ---
+# Unlike a student's class_name (a fixed year-level) or a teacher's
+# subject, a فوج's المستوى and المادة are freeform text — there's no
+# fixed list of levels/subjects for groups. الفوج itself, though, is
+# just a section letter, which IS a small fixed set worth a dropdown.
+SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F"]
+
+# --- Groups/classes (فوج) ---
+# The فوج itself is the only fixed-list part of a class's identity —
+# المستوى and المادة are free text (schools name levels/subjects
+# however they want, e.g. "3 ابتدائي" — there's no fixed enum for
+# that). A class's full name is built as المستوى + المادة + الفوج,
+# e.g. "3 ابتدائي رياضيات A".
+SECTION_OPTIONS = ["A", "B", "C", "D", "E", "F"]

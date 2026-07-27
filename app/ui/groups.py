@@ -2,10 +2,16 @@
 """
 app/ui/groups.py
 
-The Groups (فوج) list page. Shows every class/group with live search
-and level/subject filters, the assigned teacher, and how many
-students are enrolled — backed by app/services/group_service.py.
-Mirrors app/ui/students.py and app/ui/teachers.py.
+The Groups (فوج) list page. Shows every class/group with a live
+search (matching level/subject/section) plus a section-letter
+filter, the assigned teacher, and how many students are enrolled —
+backed by app/services/group_service.py. Mirrors app/ui/students.py
+and app/ui/teachers.py.
+
+Unlike students/teachers, المستوى and المادة have no fixed list here
+(schools name levels/subjects however they like), so there's no
+dropdown filter for either — just the search box. الفوج (the section
+letter) IS a small fixed set, so it gets its own filter dropdown.
 """
 
 from PySide6.QtWidgets import (
@@ -18,16 +24,14 @@ from PySide6.QtGui import QColor, QBrush
 
 from app.theme import Colors
 from app.common import ScrollPage, make_label, make_button
-from app.constants import CLASS_OPTIONS, SUBJECT_OPTIONS
+from app.constants import SECTION_OPTIONS
 from app.services import group_service, teacher_service
 from app.ui.group_form import GroupFormDialog
 
-_COLUMNS = ["الفوج", "المستوى", "المادة", "الأستاذ", "عدد التلاميذ", "إجراءات"]
+_COLUMNS = ["الفصل", "المستوى", "المادة", "الفوج", "الأستاذ", "عدد التلاميذ", "إجراءات"]
 
-_ALL_LEVELS_LABEL = "كل المستويات"
-_ALL_SUBJECTS_LABEL = "كل المواد"
-_LEVEL_OPTIONS = [_ALL_LEVELS_LABEL] + CLASS_OPTIONS
-_SUBJECT_OPTIONS = [_ALL_SUBJECTS_LABEL] + SUBJECT_OPTIONS
+_ALL_SECTIONS_LABEL = "كل الأفواج"
+_SECTION_OPTIONS = [_ALL_SECTIONS_LABEL] + SECTION_OPTIONS
 _NO_TEACHER_LABEL = "بدون أستاذ"
 
 
@@ -42,8 +46,7 @@ class GroupsPage(ScrollPage):
         self.content_layout.addWidget(self._build_table_card())
 
         self.search_box.textChanged.connect(self._reload)
-        self.level_filter.currentIndexChanged.connect(self._reload)
-        self.subject_filter.currentIndexChanged.connect(self._reload)
+        self.section_filter.currentIndexChanged.connect(self._reload)
 
         self._reload()
 
@@ -91,30 +94,21 @@ class GroupsPage(ScrollPage):
 
         self.search_box = QLineEdit()
         self.search_box.setObjectName("searchBox")
-        self.search_box.setPlaceholderText("🔍  ابحث باسم الفوج، المستوى أو المادة...")
+        self.search_box.setPlaceholderText("🔍  ابحث بالمستوى أو المادة أو الفوج...")
         self.search_box.setAlignment(Qt.AlignRight)
         toolbar.addWidget(self.search_box, 1)
 
-        self.level_filter = QComboBox(objectName="filterCombo")
-        self.level_filter.addItems(_LEVEL_OPTIONS)
-        toolbar.addWidget(self.level_filter)
-
-        self.subject_filter = QComboBox(objectName="filterCombo")
-        self.subject_filter.addItems(_SUBJECT_OPTIONS)
-        toolbar.addWidget(self.subject_filter)
+        self.section_filter = QComboBox(objectName="filterCombo")
+        self.section_filter.addItems(_SECTION_OPTIONS)
+        toolbar.addWidget(self.section_filter)
 
         return toolbar
 
     def _current_filters(self):
-        level = self.level_filter.currentText()
-        if level == _ALL_LEVELS_LABEL:
-            level = ""
-
-        subject = self.subject_filter.currentText()
-        if subject == _ALL_SUBJECTS_LABEL:
-            subject = ""
-
-        return self.search_box.text().strip(), level, subject
+        section = self.section_filter.currentText()
+        if section == _ALL_SECTIONS_LABEL:
+            section = ""
+        return self.search_box.text().strip(), section
 
     # ------------------------------------------------------------------ #
     # Table
@@ -149,8 +143,8 @@ class GroupsPage(ScrollPage):
 
     def _reload(self):
         """Re-query the database with the current search/filter state and repaint the table."""
-        search, level, subject = self._current_filters()
-        groups = group_service.get_all_groups(search=search, level=level, subject=subject)
+        search, section = self._current_filters()
+        groups = group_service.get_all_groups(search=search, section=section)
 
         total = group_service.count_groups()
         self.subtitle_label.setText(f"{total} فوج مسجل")
@@ -163,17 +157,19 @@ class GroupsPage(ScrollPage):
             teacher_label = teacher_names.get(group.teacher_id, _NO_TEACHER_LABEL)
             student_count = group_service.count_students_in_group(group.id)
 
-            self.table.setCellWidget(row, 0, self._build_name_cell(group.name))
-            for col, value in enumerate((group.level, group.subject, teacher_label), start=1):
+            self.table.setCellWidget(row, 0, self._build_name_cell(group.display_name))
+            for col, value in enumerate((group.level, group.subject, group.section, teacher_label), start=1):
                 self.table.setItem(row, col, self._build_text_item(value))
-            self.table.setItem(row, 4, self._build_text_item(str(student_count)))
-            self.table.setCellWidget(row, 5, self._build_actions_cell(group.id))
+            self.table.setItem(row, 5, self._build_text_item(str(student_count)))
+            self.table.setCellWidget(row, 6, self._build_actions_cell(group.id))
 
     def _build_name_cell(self, name: str) -> QWidget:
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(12, 4, 12, 4)
-        row.addWidget(make_label(name, style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};"))
+        row.addWidget(make_label(
+            name or "—", style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};",
+        ))
         row.addStretch(1)
         return wrapper
 
