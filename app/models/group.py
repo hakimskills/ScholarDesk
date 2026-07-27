@@ -23,9 +23,9 @@ from typing import Optional
 
 @dataclass
 class Group:
-    level: str = ""                          # المستوى
-    name: str = ""                           # الفوج
-    subject: str = ""                        # المادة
+    level: str = ""                          # المستوى — free text, e.g. "3 ابتدائي"
+    subject: str = ""                        # المادة — free text, e.g. "رياضيات"
+    section: str = ""                        # الفوج — fixed letter, e.g. "A"
     sessions_per_round: int = 0              # عدد الحصص/الجولة
     duration_hours: float = 0.0              # المدة (سا)
     teacher_id: Optional[int] = None         # الأستاذ — one teacher per group
@@ -35,6 +35,14 @@ class Group:
     branch: str = ""                         # الفرع
     note: str = ""                           # الملاحظة
     id: Optional[int] = None
+
+    @property
+    def display_name(self) -> str:
+        """The class's own name: المستوى + المادة + الفوج, in that
+        order — e.g. "3 ابتدائي رياضيات A". Not stored separately;
+        always derived from the three parts so it can never drift
+        out of sync with them."""
+        return " ".join(part for part in (self.level, self.subject, self.section) if part).strip()
 
     @property
     def percentage(self) -> Optional[float]:
@@ -48,8 +56,8 @@ class Group:
         return cls(
             id=row["id"],
             level=row["level"],
-            name=row["name"],
             subject=row["subject"],
+            section=row["section"],
             sessions_per_round=row["sessions_per_round"],
             duration_hours=row["duration_hours"],
             teacher_id=row["teacher_id"],
