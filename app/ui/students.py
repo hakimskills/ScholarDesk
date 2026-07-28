@@ -10,15 +10,17 @@ New students are added without a class (class assignment happens
 later, via the edit dialog) — so this page also has to render and
 filter on an empty class_name gracefully.
 
-Kept visually in step with app/ui/groups.py and app/ui/teachers.py:
+Visual language: navy (#0F104A) primary brand color, soft shadowed
+cards, pill badges/filters, and initials-avatars in the name column.
+Kept visually in step with app/ui/groups.py and app/ui/teachers.py —
 same table-grid separators, same explicit RTL setup on every
-search box/filter, same teal accent from app/theme.py.
+search box/filter, same brand accent from app/theme.py.
 """
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLineEdit, QComboBox, QFrame,
     QTableWidget, QTableWidgetItem, QAbstractItemView, QHeaderView,
-    QWidget, QMessageBox,
+    QWidget, QMessageBox, QGraphicsDropShadowEffect, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QBrush
@@ -63,14 +65,17 @@ class StudentsPage(ScrollPage):
         header.setSpacing(16)
 
         title_box = QVBoxLayout()
-        title_box.setSpacing(4)
+        title_box.setSpacing(6)
         title_box.addWidget(make_button(
             "→  رجوع للوحة التحكم", "linkButton",
             on_click=lambda: self.navigate_requested.emit("dashboard"),
         ))
         title_box.addWidget(make_label("الطلاب", "pageTitle"))
-        self.subtitle_label = make_label("", "pageSubtitle")
+
+        self.subtitle_label = make_label("", "statPill")
+        self.subtitle_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         title_box.addWidget(self.subtitle_label)
+
         header.addLayout(title_box)
         header.addStretch(1)
 
@@ -141,8 +146,14 @@ class StudentsPage(ScrollPage):
     def _build_table_card(self) -> QFrame:
         card = QFrame(objectName="tableCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(0)
+
+        shadow = QGraphicsDropShadowEffect(card)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(15, 16, 74, 26))  # soft navy-tinted shadow
+        card.setGraphicsEffect(shadow)
 
         self.table = QTableWidget()
         self.table.setObjectName("dataTable")
@@ -150,24 +161,18 @@ class StudentsPage(ScrollPage):
         self.table.setColumnCount(len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(_COLUMNS)
         self.table.verticalHeader().setVisible(False)
-        # Visible grid lines so rows/columns of information read as
-        # clearly separated, instead of relying on whitespace alone —
-        # matches app/ui/groups.py.
-        self.table.setShowGrid(True)
-        self.table.setStyleSheet(
-            f"QTableWidget#dataTable {{ gridline-color: {Colors.BORDER}; }}"
-        )
+        self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setFocusPolicy(Qt.NoFocus)
-        self.table.verticalHeader().setDefaultSectionSize(58)
+        self.table.verticalHeader().setDefaultSectionSize(60)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.Stretch)
         for col in range(1, len(_COLUMNS) - 1):
             header.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(len(_COLUMNS) - 1, QHeaderView.Fixed)
-        self.table.setColumnWidth(len(_COLUMNS) - 1, 100)
+        self.table.setColumnWidth(len(_COLUMNS) - 1, 110)
 
         layout.addWidget(self.table)
         return card
@@ -182,7 +187,7 @@ class StudentsPage(ScrollPage):
             students = [s for s in students if not s.has_class]
 
         total = student_service.count_students()
-        self.subtitle_label.setText(f"{total} طالب مسجل في المدرسة")
+        self.subtitle_label.setText(f"👥  {total} طالب مسجل في المدرسة")
 
         self.table.setRowCount(len(students))
         for row, student in enumerate(students):
@@ -194,11 +199,25 @@ class StudentsPage(ScrollPage):
             self.table.setCellWidget(row, 6, self._build_actions_cell(student.id))
 
     def _build_name_cell(self, name: str) -> QWidget:
+        display_name = name or "—"
+        initial = (name or "؟").strip()[0].upper()
+
+        avatar = make_label(
+            initial, "avatarBadge",
+            style=(
+                f"background-color: {Colors.PRIMARY_LIGHT}; color: {Colors.PRIMARY}; font-size: 12px; font-weight: 700;"
+                f"border-radius: 16px; min-width: 32px; max-width: 32px;"
+                f"min-height: 32px; max-height: 32px; qproperty-alignment: AlignCenter;"
+            ),
+        )
+
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(12, 4, 12, 4)
+        row.setSpacing(10)
+        row.addWidget(avatar)
         row.addWidget(make_label(
-            name or "—", style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};",
+            display_name, style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};",
         ))
         row.addStretch(1)
         return wrapper
@@ -206,18 +225,25 @@ class StudentsPage(ScrollPage):
     def _build_class_cell(self, class_name: str) -> QWidget:
         """Shows the class name, or a muted 'غير محدد' badge if not assigned yet."""
         if class_name:
-            label = make_label(class_name, style=f"font-size: 12.5px; color: {Colors.TEXT_SECONDARY};")
+            label = make_label(
+                class_name,
+                style=(
+                    f"font-size: 11.5px; font-weight: 600; color: {Colors.PRIMARY};"
+                    f"background-color: {Colors.PRIMARY_LIGHT}; border-radius: 10px; padding: 3px 12px;"
+                ),
+            )
         else:
             label = make_label(
                 UNASSIGNED_CLASS_LABEL,
                 style=(
                     f"font-size: 11.5px; font-weight: 600; color: {Colors.TEXT_MUTED};"
-                    f"background-color: {Colors.SURFACE_ALT}; border-radius: 10px; padding: 3px 10px;"
+                    f"background-color: {Colors.SURFACE_ALT}; border: 1px dashed {Colors.BORDER_STRONG};"
+                    f"border-radius: 10px; padding: 3px 10px;"
                 ),
             )
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
-        row.setContentsMargins(0, 0, 0, 0)
+        row.setContentsMargins(12, 4, 12, 4)
         row.addWidget(label)
         row.addStretch(1)
         return wrapper
@@ -232,7 +258,7 @@ class StudentsPage(ScrollPage):
         text, color, bg = PAYMENT_STATUS.get(status_key, ("—", Colors.TEXT_MUTED, Colors.SURFACE_ALT))
         badge = make_label(
             text, "statusBadge",
-            style=f"background-color: {bg}; color: {color}; border-radius: 10px; padding: 3px 10px; font-size: 11.5px; font-weight: 600;",
+            style=f"background-color: {bg}; color: {color}; border-radius: 10px; padding: 3px 12px; font-size: 11.5px; font-weight: 600;",
         )
 
         wrapper = QWidget()
@@ -247,9 +273,8 @@ class StudentsPage(ScrollPage):
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(4)
+        row.setSpacing(2)
         row.addStretch(1)
-        row.addWidget(make_button("👁", "rowActionButton"))
         row.addWidget(make_button(
             "✏", "rowActionButton",
             on_click=lambda: self._open_edit_form(student_id),
@@ -276,3 +301,4 @@ class StudentsPage(ScrollPage):
         if box.clickedButton() == yes_button:
             student_service.delete_student(student_id)
             self._reload()
+     #end

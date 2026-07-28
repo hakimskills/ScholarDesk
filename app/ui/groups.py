@@ -132,13 +132,11 @@ class GroupsPage(ScrollPage):
 
         self.search_box = QLineEdit()
         self.search_box.setObjectName("searchBox")
-        self.search_box.setLayoutDirection(Qt.RightToLeft)
         self.search_box.setPlaceholderText("🔍  ابحث بالمستوى أو المادة أو الفوج...")
         self.search_box.setAlignment(Qt.AlignRight)
         toolbar.addWidget(self.search_box, 1)
 
         self.section_filter = QComboBox(objectName="filterCombo")
-        self.section_filter.setLayoutDirection(Qt.RightToLeft)
         self.section_filter.addItems(_SECTION_OPTIONS)
         toolbar.addWidget(self.section_filter)
 

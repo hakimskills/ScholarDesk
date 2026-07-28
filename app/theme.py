@@ -17,17 +17,18 @@ class Colors:
     """Application color palette."""
 
     # Surfaces
-    BG = "#F3F5FB"              # window / page background
+    BG = "#F4F5FA"              # window / page background
     SURFACE = "#FFFFFF"         # cards, panels
-    SURFACE_ALT = "#F8F9FD"     # subtle alternate surface (inputs, rows)
-    BORDER = "#E8EAF3"          # hairline borders
-    BORDER_STRONG = "#DBDEEC"
+    SURFACE_ALT = "#F7F7FB"     # subtle alternate surface (inputs, rows)
+    BORDER = "#E9E9F2"          # hairline borders
+    BORDER_STRONG = "#DADAE9"
 
-    # Brand (teal — shared across every page/dialog so the app reads
-    # as one consistent product instead of a mix of accent colors)
-    PRIMARY = "#149C9C"
-    PRIMARY_DARK = "#118585"
-    PRIMARY_LIGHT = "#E1F5F4"
+    # Brand (deep navy — shared across every page/dialog so the app
+    # reads as one consistent product instead of a mix of accent colors)
+    PRIMARY = "#0F104A"
+    PRIMARY_DARK = "#0A0B33"
+    PRIMARY_LIGHT = "#E7E7F2"   # soft tint for badges / hovers / selection
+    PRIMARY_SOFT = "#4B4C82"    # muted variant for secondary text on brand
     PRIMARY_TEXT_ON = "#FFFFFF"
 
     # Status
@@ -43,15 +44,15 @@ class Colors:
     VIOLET_LIGHT = "#F1EAFE"
 
     # Dashboard menu tiles
-    TILE_ACCENT = "#149C9C"
-    TILE_ACCENT_HOVER = "#118585"
+    TILE_ACCENT = "#0F104A"
+    TILE_ACCENT_HOVER = "#0A0B33"
     TILE_MUTED = "#8890B8"
     TILE_MUTED_HOVER = "#767FAE"
 
     # Text
-    TEXT_PRIMARY = "#1B2140"
-    TEXT_SECONDARY = "#6B7189"
-    TEXT_MUTED = "#9CA0B8"
+    TEXT_PRIMARY = "#181A33"
+    TEXT_SECONDARY = "#6B6E8A"
+    TEXT_MUTED = "#9C9FB8"
     TEXT_ON_PRIMARY = "#FFFFFF"
 
 
@@ -159,20 +160,58 @@ def build_stylesheet(font_family: str) -> str:
         background-color: {c.SURFACE};
         border: 1px solid {c.BORDER};
         border-radius: {Radius.PILL}px;
-        padding: 9px 16px;
+        padding: 10px 18px;
         font-size: 13px;
-        min-width: 220px;
+        min-width: 240px;
         color: {c.TEXT_PRIMARY};
     }}
     QLineEdit#searchBox:focus {{
         border: 1px solid {c.PRIMARY};
+        background-color: {c.SURFACE};
     }}
+    QLineEdit#searchBox:hover {{
+        border: 1px solid {c.BORDER_STRONG};
+    }}
+
+    /* ---------- Filter combo boxes ---------- */
+    QComboBox#filterCombo {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.PILL}px;
+        padding: 9px 16px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: {c.TEXT_SECONDARY};
+        min-width: 130px;
+    }}
+    QComboBox#filterCombo:hover {{
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY};
+    }}
+    QComboBox#filterCombo:focus {{
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY};
+    }}
+    QComboBox#filterCombo::drop-down {{
+        border: none;
+        width: 24px;
+    }}
+    QComboBox#filterCombo QAbstractItemView {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.MD}px;
+        selection-background-color: {c.PRIMARY_LIGHT};
+        selection-color: {c.PRIMARY};
+        outline: none;
+        padding: 4px;
+    }}
+
     QPushButton#primaryButton {{
         background-color: {c.PRIMARY};
         color: {c.TEXT_ON_PRIMARY};
         border: none;
         border-radius: {Radius.PILL}px;
-        padding: 10px 20px;
+        padding: 10px 22px;
         font-size: 13px;
         font-weight: 600;
     }}
@@ -194,11 +233,27 @@ def build_stylesheet(font_family: str) -> str:
     }}
     QPushButton#outlineButton:hover {{
         background-color: {c.SURFACE_ALT};
-        border: 1px solid {c.TEXT_MUTED};
-        color: {c.TEXT_PRIMARY};
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY};
     }}
     QPushButton#outlineButton:pressed {{
         padding-top: 11px;
+    }}
+
+    /* ---------- Row action buttons (table) ---------- */
+    QPushButton#rowActionButton {{
+        background-color: transparent;
+        border: none;
+        border-radius: {Radius.SM}px;
+        color: {c.TEXT_SECONDARY};
+        font-size: 13px;
+        padding: 6px;
+        min-width: 28px;
+        min-height: 28px;
+    }}
+    QPushButton#rowActionButton:hover {{
+        background-color: {c.PRIMARY_LIGHT};
+        color: {c.PRIMARY};
     }}
 
     /* ---------- Form dialogs (add/edit student, etc.) ---------- */
@@ -259,7 +314,7 @@ def build_stylesheet(font_family: str) -> str:
         background-color: {c.SURFACE};
         border: 1px solid {c.BORDER};
         selection-background-color: {c.PRIMARY_LIGHT};
-        selection-color: {c.PRIMARY_DARK};
+        selection-color: {c.PRIMARY};
         outline: none;
         padding: 4px;
     }}
@@ -269,6 +324,54 @@ def build_stylesheet(font_family: str) -> str:
     }}
 
     /* ---------- Table card (students list) ---------- */
+    QFrame#tableCard {{
+        background-color: {c.SURFACE};
+        border: 1px solid {c.BORDER};
+        border-radius: {Radius.LG}px;
+    }}
+
+    QTableWidget#dataTable {{
+        background-color: {c.SURFACE};
+        border: none;
+        gridline-color: transparent;
+        selection-background-color: {c.PRIMARY_LIGHT};
+    }}
+    QTableWidget#dataTable::item {{
+        border-bottom: 1px solid {c.BORDER};
+        padding: 2px 4px;
+    }}
+    QTableWidget#dataTable::item:selected {{
+        background-color: {c.PRIMARY_LIGHT};
+        color: {c.TEXT_PRIMARY};
+    }}
+    QHeaderView::section {{
+        background-color: {c.SURFACE};
+        color: {c.TEXT_MUTED};
+        border: none;
+        border-bottom: 2px solid {c.BORDER};
+        padding: 12px 10px;
+        font-size: 11.5px;
+        font-weight: 700;
+    }}
+
+    /* ---------- Header / stat pill ---------- */
+    QLabel#pageTitle {{
+        font-size: 22px;
+        font-weight: 800;
+        color: {c.PRIMARY};
+    }}
+    QLabel#statPill {{
+        background-color: {c.PRIMARY_LIGHT};
+        color: {c.PRIMARY};
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: {Radius.PILL}px;
+        padding: 5px 14px;
+    }}
+    QFrame#tableCard {{
+        border-top: 3px solid {c.PRIMARY};
+    }}
+
     QPushButton#linkButton {{
         background-color: transparent;
         border: none;
@@ -323,7 +426,7 @@ def build_stylesheet(font_family: str) -> str:
     }}
     QMenu::item:selected {{
         background-color: {c.PRIMARY_LIGHT};
-        color: {c.PRIMARY_DARK};
+        color: {c.PRIMARY};
     }}
     QMenu::item:disabled {{
         color: {c.TEXT_MUTED};
@@ -355,7 +458,7 @@ def build_stylesheet(font_family: str) -> str:
     QMessageBox QPushButton:hover {{
         background-color: {c.PRIMARY_LIGHT};
         border: 1px solid {c.PRIMARY};
-        color: {c.PRIMARY_DARK};
+        color: {c.PRIMARY};
     }}
     QMessageBox QPushButton:pressed {{
         padding-top: 9px;
