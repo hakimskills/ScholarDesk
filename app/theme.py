@@ -23,10 +23,11 @@ class Colors:
     BORDER = "#E8EAF3"          # hairline borders
     BORDER_STRONG = "#DBDEEC"
 
-    # Brand
-    PRIMARY = "#4F5FF0"
-    PRIMARY_DARK = "#3C48C9"
-    PRIMARY_LIGHT = "#EEF0FE"
+    # Brand (teal — shared across every page/dialog so the app reads
+    # as one consistent product instead of a mix of accent colors)
+    PRIMARY = "#149C9C"
+    PRIMARY_DARK = "#118585"
+    PRIMARY_LIGHT = "#E1F5F4"
     PRIMARY_TEXT_ON = "#FFFFFF"
 
     # Status

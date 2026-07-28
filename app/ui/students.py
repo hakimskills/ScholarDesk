@@ -9,6 +9,10 @@ app/services/student_service.py (SQLite).
 New students are added without a class (class assignment happens
 later, via the edit dialog) — so this page also has to render and
 filter on an empty class_name gracefully.
+
+Kept visually in step with app/ui/groups.py and app/ui/teachers.py:
+same table-grid separators, same explicit RTL setup on every
+search box/filter, same teal accent from app/theme.py.
 """
 
 from PySide6.QtWidgets import (
@@ -98,15 +102,18 @@ class StudentsPage(ScrollPage):
 
         self.search_box = QLineEdit()
         self.search_box.setObjectName("searchBox")
+        self.search_box.setLayoutDirection(Qt.RightToLeft)
         self.search_box.setPlaceholderText("🔍  ابحث بالاسم، الهاتف أو ولي الأمر...")
         self.search_box.setAlignment(Qt.AlignRight)
         toolbar.addWidget(self.search_box, 1)
 
         self.class_filter = QComboBox(objectName="filterCombo")
+        self.class_filter.setLayoutDirection(Qt.RightToLeft)
         self.class_filter.addItems(_CLASS_OPTIONS)
         toolbar.addWidget(self.class_filter)
 
         self.status_filter = QComboBox(objectName="filterCombo")
+        self.status_filter.setLayoutDirection(Qt.RightToLeft)
         self.status_filter.addItems(_STATUS_OPTIONS)
         toolbar.addWidget(self.status_filter)
 
@@ -143,7 +150,13 @@ class StudentsPage(ScrollPage):
         self.table.setColumnCount(len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(_COLUMNS)
         self.table.verticalHeader().setVisible(False)
-        self.table.setShowGrid(False)
+        # Visible grid lines so rows/columns of information read as
+        # clearly separated, instead of relying on whitespace alone —
+        # matches app/ui/groups.py.
+        self.table.setShowGrid(True)
+        self.table.setStyleSheet(
+            f"QTableWidget#dataTable {{ gridline-color: {Colors.BORDER}; }}"
+        )
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setFocusPolicy(Qt.NoFocus)
@@ -184,7 +197,9 @@ class StudentsPage(ScrollPage):
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
         row.setContentsMargins(12, 4, 12, 4)
-        row.addWidget(make_label(name, style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};"))
+        row.addWidget(make_label(
+            name or "—", style=f"font-size: 12.5px; font-weight: 600; color: {Colors.TEXT_PRIMARY};",
+        ))
         row.addStretch(1)
         return wrapper
 
@@ -208,7 +223,7 @@ class StudentsPage(ScrollPage):
         return wrapper
 
     def _build_text_item(self, text: str) -> QTableWidgetItem:
-        item = QTableWidgetItem(text)
+        item = QTableWidgetItem(text or "—")
         item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
         item.setForeground(QBrush(QColor(Colors.TEXT_SECONDARY)))
         return item
@@ -252,11 +267,11 @@ class StudentsPage(ScrollPage):
         box.setText("هل أنت متأكد من حذف هذا التلميذ؟")
         box.setIcon(QMessageBox.Question)
         box.setLayoutDirection(Qt.RightToLeft)
-       
+
         yes_button = box.addButton("نعم", QMessageBox.YesRole)
         no_button = box.addButton("لا", QMessageBox.NoRole)
         box.setDefaultButton(no_button)
-       
+
         box.exec()
         if box.clickedButton() == yes_button:
             student_service.delete_student(student_id)
