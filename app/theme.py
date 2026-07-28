@@ -185,8 +185,12 @@ def build_stylesheet(font_family: str) -> str:
         min-width: 130px;
     }}
     QComboBox#filterCombo:hover {{
-        border: 1px solid {c.BORDER_STRONG};
-        color: {c.TEXT_PRIMARY};
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY};
+    }}
+    QComboBox#filterCombo:focus {{
+        border: 1px solid {c.PRIMARY};
+        color: {c.PRIMARY};
     }}
     QComboBox#filterCombo::drop-down {{
         border: none;
@@ -354,7 +358,7 @@ def build_stylesheet(font_family: str) -> str:
     QLabel#pageTitle {{
         font-size: 22px;
         font-weight: 800;
-        color: {c.TEXT_PRIMARY};
+        color: {c.PRIMARY};
     }}
     QLabel#statPill {{
         background-color: {c.PRIMARY_LIGHT};
@@ -363,6 +367,9 @@ def build_stylesheet(font_family: str) -> str:
         font-weight: 700;
         border-radius: {Radius.PILL}px;
         padding: 5px 14px;
+    }}
+    QFrame#tableCard {{
+        border-top: 3px solid {c.PRIMARY};
     }}
 
     QPushButton#linkButton {{
