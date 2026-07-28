@@ -2,15 +2,18 @@
 """
 app/ui/dashboard.py
 
-The Dashboard page: just a grid of big colored shortcut tiles — no
-greeting bar, search box, stat cards, or activity feed.
+The Dashboard page: a grid of compact, rectangular shortcut tiles —
+no greeting bar, search box, stat cards, or activity feed.
 
-Only "التلاميذ" is wired up today (-> the Students page), since
-that's the only other page that exists yet. الأساتذة / الأفواج
-الشهرية / جميع المتأخرين في الدفع each emit a page key nothing
-currently maps to, so they're harmless no-ops until those pages are
-built — add them to MainWindow's _pages dict in main.py when ready
-and they'll start working with no changes needed here.
+Tiles are either:
+- ready=True   -> primary-colored, navigates to a real page.
+- ready=False  -> grey with a "قريباً" badge, and does nothing when
+  clicked — that feature hasn't been built yet.
+
+التلاميذ / الأساتذة / الأفواج are wired to real pages today (see
+main.py's _pages dict). Everything else is a placeholder: add its
+page to _pages and flip its `ready` flag to True here when it's
+built — nothing else needs to change.
 """
 
 from PySide6.QtWidgets import QGridLayout
@@ -19,23 +22,27 @@ from PySide6.QtCore import Signal
 from app.common import ScrollPage
 from app.widgets import MenuTile
 
-# (icon, label, variant "accent"/"muted", target page key)
+# (icon, label, ready, target page key)
 _TILES = [
-    ("🧑‍🎓", "التلاميذ", "accent", "students"),
-    ("🧑‍🏫", "الأساتذة", "muted", "teachers"),
-    ("👥", "الأفواج الشهرية", "muted", "monthly_groups"),
-    ("🏢", "جميع المتأخرين في الدفع", "accent", "late_payments"),
+    ("🧑‍🎓", "التلاميذ", True, "students"),
+    ("🧑‍🏫", "الأساتذة", True, "teachers"),
+    ("👥", "الأفواج", True, "monthly_groups"),
+    ("📋", "الغيابات", False, "attendance"),
+    ("💳", "المدفوعات", False, "payments"),
+    ("✉️", "الرسائل", False, "messages"),
+    ("📊", "التقارير", False, "reports"),
+    ("⚙️", "الإعدادات", False, "settings"),
 ]
 
-_TILE_COLUMNS = 2
+_TILE_COLUMNS = 4
 
 
 class Dashboard(ScrollPage):
     """The dashboard / home page: a grid of navigation tiles."""
 
-    # Emitted with a page key ("students", "groups", ...) whenever a
-    # tile that maps to a real page is clicked. Connected in
-    # MainWindow to a QStackedWidget.
+    # Emitted with a page key ("students", "teachers", ...) whenever
+    # a *ready* tile is clicked. Connected in MainWindow to a
+    # QStackedWidget. Coming-soon tiles never emit this at all.
     navigate_requested = Signal(str)
 
     def __init__(self, parent=None):
@@ -45,10 +52,10 @@ class Dashboard(ScrollPage):
 
     def _build_tiles_grid(self) -> QGridLayout:
         grid = QGridLayout()
-        grid.setSpacing(18)
+        grid.setSpacing(12)
 
-        for index, (icon, label, variant, target) in enumerate(_TILES):
-            tile = MenuTile(icon, label, variant=variant)
+        for index, (icon, label, ready, target) in enumerate(_TILES):
+            tile = MenuTile(icon, label, ready=ready)
             tile.clicked.connect(lambda _=False, t=target: self.navigate_requested.emit(t))
             row, col = divmod(index, _TILE_COLUMNS)
             grid.addWidget(tile, row, col)
