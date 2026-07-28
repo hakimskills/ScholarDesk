@@ -40,17 +40,6 @@ _ALL_CLASSES_LABEL = "كل الأقسام"
 _CLASS_OPTIONS = [_ALL_CLASSES_LABEL] + CLASS_OPTIONS + [UNASSIGNED_CLASS_LABEL]
 _STATUS_OPTIONS = ["كل حالات الدفع"] + [label for label, _, _ in PAYMENT_STATUS.values()]
 
-# Rotating avatar tint pairs (background, text) — cycled by name hash
-# so each student gets a stable, distinct-ish color without any extra
-# per-student data.
-_AVATAR_PALETTE = [
-    (Colors.PRIMARY_LIGHT, Colors.PRIMARY),
-    (Colors.INFO_LIGHT, Colors.INFO),
-    (Colors.SUCCESS_LIGHT, Colors.SUCCESS),
-    (Colors.VIOLET_LIGHT, Colors.VIOLET),
-    (Colors.WARNING_LIGHT, Colors.WARNING),
-]
-
 
 class StudentsPage(ScrollPage):
     navigate_requested = Signal(str)
@@ -209,19 +198,14 @@ class StudentsPage(ScrollPage):
             self.table.setCellWidget(row, 5, self._build_status_cell(student.payment_status))
             self.table.setCellWidget(row, 6, self._build_actions_cell(student.id))
 
-    def _avatar_colors(self, name: str):
-        key = sum(ord(ch) for ch in name) if name else 0
-        return _AVATAR_PALETTE[key % len(_AVATAR_PALETTE)]
-
     def _build_name_cell(self, name: str) -> QWidget:
         display_name = name or "—"
         initial = (name or "؟").strip()[0].upper()
-        bg, fg = self._avatar_colors(display_name)
 
         avatar = make_label(
             initial, "avatarBadge",
             style=(
-                f"background-color: {bg}; color: {fg}; font-size: 12px; font-weight: 700;"
+                f"background-color: {Colors.PRIMARY_LIGHT}; color: {Colors.PRIMARY}; font-size: 12px; font-weight: 700;"
                 f"border-radius: 16px; min-width: 32px; max-width: 32px;"
                 f"min-height: 32px; max-height: 32px; qproperty-alignment: AlignCenter;"
             ),
@@ -259,7 +243,7 @@ class StudentsPage(ScrollPage):
             )
         wrapper = QWidget()
         row = QHBoxLayout(wrapper)
-        row.setContentsMargins(0, 0, 0, 0)
+        row.setContentsMargins(12, 4, 12, 4)
         row.addWidget(label)
         row.addStretch(1)
         return wrapper
@@ -291,7 +275,6 @@ class StudentsPage(ScrollPage):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(2)
         row.addStretch(1)
-        row.addWidget(make_button("👁", "rowActionButton"))
         row.addWidget(make_button(
             "✏", "rowActionButton",
             on_click=lambda: self._open_edit_form(student_id),
