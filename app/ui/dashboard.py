@@ -10,10 +10,10 @@ Tiles are either:
 - ready=False  -> grey with a "قريباً" badge, and does nothing when
   clicked — that feature hasn't been built yet.
 
-التلاميذ / الأساتذة / الأفواج are wired to real pages today (see
-main.py's _pages dict). Everything else is a placeholder: add its
-page to _pages and flip its `ready` flag to True here when it's
-built — nothing else needs to change.
+التلاميذ / الأساتذة / الأفواج / الرسائل are wired to real pages
+today (see main.py's _pages dict). Everything else is a placeholder:
+add its page to _pages and flip its `ready` flag to True here when
+it's built — nothing else needs to change.
 """
 
 from PySide6.QtWidgets import QGridLayout
@@ -29,7 +29,7 @@ _TILES = [
     ("👥", "الأفواج", True, "monthly_groups"),
     ("📋", "الغيابات", False, "attendance"),
     ("💳", "المدفوعات", False, "payments"),
-    ("✉️", "الرسائل", False, "messages"),
+    ("✉️", "الرسائل", True, "messages"),
     ("📊", "التقارير", False, "reports"),
     ("⚙️", "الإعدادات", False, "settings"),
 ]
