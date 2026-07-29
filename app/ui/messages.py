@@ -117,12 +117,13 @@ class _ChosenRow(QFrame):
         layout.addWidget(remove_button, 0, Qt.AlignLeft)
 
 
-def _make_pick_list(min_height: int) -> QListWidget:
+def _make_pick_list(min_height: int, max_height: int) -> QListWidget:
     list_widget = QListWidget(objectName="studentPickList")
     list_widget.setLayoutDirection(Qt.RightToLeft)
     list_widget.setSelectionMode(QAbstractItemView.NoSelection)
     list_widget.setFocusPolicy(Qt.NoFocus)
     list_widget.setMinimumHeight(min_height)
+    list_widget.setMaximumHeight(max_height)
     return list_widget
 
 
@@ -201,7 +202,7 @@ class MessagesPage(ScrollPage):
         self.search_box.setPlaceholderText("🔍  ابحث عن تلميذ...")
         section.add_widget(self.search_box)
 
-        self.available_list = _make_pick_list(340)
+        self.available_list = _make_pick_list(min_height=280, max_height=340)
         section.add_widget(self.available_list)
 
         footer = QHBoxLayout()
@@ -220,7 +221,7 @@ class MessagesPage(ScrollPage):
     def _build_chosen_section(self) -> SectionCard:
         section = SectionCard(title="المستلمون المحددون", subtitle="راجع القائمة ثم تابع لكتابة الرسالة")
 
-        self.chosen_list = _make_pick_list(340)
+        self.chosen_list = _make_pick_list(min_height=140, max_height=200)
         section.add_widget(self.chosen_list)
 
         section.add_widget(make_button(
