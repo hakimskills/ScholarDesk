@@ -3,16 +3,23 @@
 app/ui/group_students_dialog.py
 
 "إدارة التلاميذ" — add/remove a group's students, opened by
-right-clicking a row in app/ui/groups.py. This is deliberately
-separate from app/ui/group_form.py: creating or editing a group only
-ever touches the group's own fields, and membership is edited here
-instead, once the group already exists.
+right-clicking (or the ✏-adjacent action) a row in app/ui/groups.py.
+Deliberately separate from app/ui/group_form.py: creating or editing
+a group only ever touches the group's own fields; membership is
+edited here instead, once the group already exists.
 
-Shows every student in a search-filterable, checkable list (checked
-= currently a member of this group). Saving replaces the group's
-whole roster in one call via group_service.set_group_students, which
-already does the diff internally (DELETE + re-INSERT), so this
-dialog just needs to hand over the final selected id list.
+Two tabs, like a browser, instead of one combined checklist:
+- "إضافة تلاميذ"  — every student NOT already in this group, with a
+  search box and a "إضافة المحدد" button.
+- "تلاميذ الفوج"  — every student already IN this group, with its
+  own search box, a "حذف المحدد" button for multi-select removal,
+  and a right-click "🗑 حذف تلميذ" action for removing just one.
+
+Every add/remove is written to the database immediately (via
+group_service.add_students_to_group / remove_students_from_group) —
+there's no separate "save" step for membership, so both tabs refresh
+each other right away and the dialog only needs a single "إغلاق"
+button.
 
 Styled with the same formDialog/formCard building blocks used by
 app/ui/group_form.py so it reads as part of the same app rather than
@@ -20,21 +27,36 @@ a bolted-on picker.
 """
 
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLineEdit,
-    QListWidget, QListWidgetItem, QAbstractItemView,
+    QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLineEdit, QTabWidget,
+    QWidget, QListWidget, QListWidgetItem, QAbstractItemView, QMenu,
 )
 from PySide6.QtCore import Qt
 
 from app.models.group import Group
-from app.services import group_service, student_service
+from app.services import group_service
 from app.common import make_label, make_button
 
 
 def _make_search_box(placeholder: str) -> QLineEdit:
     box = QLineEdit(objectName="formInput")
+    box.setLayoutDirection(Qt.RightToLeft)
     box.setAlignment(Qt.AlignRight)
     box.setPlaceholderText(placeholder)
     return box
+
+
+def _make_pick_list() -> QListWidget:
+    list_widget = QListWidget()
+    list_widget.setObjectName("studentPickList")
+    list_widget.setLayoutDirection(Qt.RightToLeft)
+    list_widget.setMinimumHeight(280)
+    # Row selection isn't used for anything here — only the checkbox
+    # matters — and Qt's default selection highlight was covering the
+    # name text in a color that made it unreadable. Turning it off
+    # entirely fixes that; the checkbox still toggles fine on click.
+    list_widget.setSelectionMode(QAbstractItemView.NoSelection)
+    list_widget.setFocusPolicy(Qt.NoFocus)
+    return list_widget
 
 
 class GroupStudentsDialog(QDialog):
@@ -46,12 +68,15 @@ class GroupStudentsDialog(QDialog):
         self.setLayoutDirection(Qt.RightToLeft)
         self._group = group
         self.setWindowTitle("إدارة تلاميذ الفوج")
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(500)
 
         self._build_ui()
-        self._load_students()
+        self._reload_add_tab()
+        self._reload_members_tab()
         self._fit_to_screen()
 
+    # ------------------------------------------------------------------ #
+    # Layout
     # ------------------------------------------------------------------ #
     def _build_ui(self):
         outer = QVBoxLayout(self)
@@ -68,41 +93,14 @@ class GroupStudentsDialog(QDialog):
 
         card = QFrame(objectName="formCard")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 18, 20, 18)
-        card_layout.setSpacing(12)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(0)
 
-        self.search_input = _make_search_box("🔍  ابحث عن تلميذ بالاسم لإضافته أو حذفه...")
-        self.search_input.textChanged.connect(self._filter_list)
-        card_layout.addWidget(self.search_input)
-
-        self.student_list = QListWidget()
-        self.student_list.setObjectName("studentPickList")
-        self.student_list.setLayoutDirection(Qt.RightToLeft)
-        self.student_list.setMinimumHeight(320)
-        # This list only needs the checkbox — row selection isn't used
-        # for anything, and Qt's default selection highlight was
-        # covering the name text in a color that made it unreadable.
-        # Turning selection off entirely fixes that; the checkbox
-        # itself still toggles normally on click regardless of this.
-        self.student_list.setSelectionMode(QAbstractItemView.NoSelection)
-        self.student_list.setFocusPolicy(Qt.NoFocus)
-        self.student_list.itemChanged.connect(self._update_count_label)
-        card_layout.addWidget(self.student_list, 1)
-
-        divider = QFrame(objectName="formHeaderSeparator")
-        divider.setFrameShape(QFrame.HLine)
-        card_layout.addWidget(divider)
-
-        footer_row = QHBoxLayout()
-        self.count_label = make_label(
-            "لم يتم اختيار أي تلميذ بعد",
-            style="color: #6B7189; font-size: 11.5px;",
-            align=Qt.AlignRight,
-        )
-        footer_row.addWidget(self.count_label, 1)
-        footer_row.addWidget(make_button("تحديد الكل", "outlineButton", on_click=self._select_all))
-        footer_row.addWidget(make_button("إلغاء التحديد", "outlineButton", on_click=self._deselect_all))
-        card_layout.addLayout(footer_row)
+        self.tabs = QTabWidget()
+        self.tabs.setLayoutDirection(Qt.RightToLeft)
+        self.tabs.addTab(self._build_add_tab(), "إضافة تلاميذ")
+        self.tabs.addTab(self._build_members_tab(), "تلاميذ الفوج")
+        card_layout.addWidget(self.tabs)
 
         outer.addWidget(card, 1)
         outer.addLayout(self._build_buttons_row())
@@ -112,7 +110,7 @@ class GroupStudentsDialog(QDialog):
         if screen is None:
             return
         available = screen.availableGeometry()
-        max_height = max(420, int(available.height() * 0.85))
+        max_height = max(460, int(available.height() * 0.85))
         self.resize(self.width(), min(self.sizeHint().height(), max_height))
         self.setMaximumHeight(max_height)
 
@@ -120,58 +118,137 @@ class GroupStudentsDialog(QDialog):
         row = QHBoxLayout()
         row.setSpacing(10)
         row.addStretch(1)
-        row.addWidget(make_button("إلغاء", "outlineButton", on_click=self.reject))
-        row.addWidget(make_button("حفظ", "primaryButton", on_click=self._on_save))
+        row.addWidget(make_button("إغلاق", "primaryButton", on_click=self.accept))
         return row
 
     # ------------------------------------------------------------------ #
-    def _load_students(self):
-        member_ids = set(group_service.get_group_student_ids(self._group.id)) if self._group.id else set()
-        self.student_list.blockSignals(True)
-        for student in student_service.get_all_students():
+    # Tab 1 — إضافة تلاميذ (students NOT in the group yet)
+    # ------------------------------------------------------------------ #
+    def _build_add_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(4, 14, 4, 4)
+        layout.setSpacing(12)
+
+        self.add_search_input = _make_search_box("🔍  ابحث عن تلميذ لإضافته...")
+        self.add_search_input.textChanged.connect(lambda text: self._filter_list(self.add_list, text))
+        layout.addWidget(self.add_search_input)
+
+        self.add_list = _make_pick_list()
+        layout.addWidget(self.add_list, 1)
+
+        footer = QHBoxLayout()
+        self.add_count_label = make_label("", style="color: #6B7189; font-size: 11.5px;", align=Qt.AlignRight)
+        footer.addWidget(self.add_count_label, 1)
+        footer.addWidget(make_button("إضافة المحدد", "primaryButton", on_click=self._add_selected))
+        layout.addLayout(footer)
+
+        return tab
+
+    def _reload_add_tab(self):
+        self.add_list.clear()
+        for student in group_service.get_students_not_in_group(self._group.id):
             item = QListWidgetItem(student.full_name)
             item.setData(Qt.UserRole, student.id)
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if student.id in member_ids else Qt.Unchecked)
-            self.student_list.addItem(item)
-        self.student_list.blockSignals(False)
-        self._update_count_label()
+            item.setCheckState(Qt.Unchecked)
+            self.add_list.addItem(item)
+        self.add_search_input.clear()
+        self._update_add_count_label()
 
-    def _filter_list(self, text: str):
+    def _update_add_count_label(self, *_):
+        total = self.add_list.count()
+        self.add_count_label.setText(
+            f"{total} تلميذ متاح للإضافة" if total else "كل التلاميذ منضمّون لهذا الفوج بالفعل"
+        )
+
+    def _add_selected(self):
+        selected_ids = self._checked_ids(self.add_list)
+        if not selected_ids:
+            return
+        group_service.add_students_to_group(self._group.id, selected_ids)
+        self._reload_add_tab()
+        self._reload_members_tab()
+
+    # ------------------------------------------------------------------ #
+    # Tab 2 — تلاميذ الفوج (students already in the group)
+    # ------------------------------------------------------------------ #
+    def _build_members_tab(self) -> QWidget:
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(4, 14, 4, 4)
+        layout.setSpacing(12)
+
+        self.members_search_input = _make_search_box("🔍  ابحث عن تلميذ لحذفه...")
+        self.members_search_input.textChanged.connect(lambda text: self._filter_list(self.members_list, text))
+        layout.addWidget(self.members_search_input)
+
+        self.members_list = _make_pick_list()
+        self.members_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.members_list.customContextMenuRequested.connect(self._on_members_context_menu)
+        layout.addWidget(self.members_list, 1)
+
+        footer = QHBoxLayout()
+        self.members_count_label = make_label("", style="color: #6B7189; font-size: 11.5px;", align=Qt.AlignRight)
+        footer.addWidget(self.members_count_label, 1)
+        footer.addWidget(make_button("حذف المحدد", "outlineButton", on_click=self._remove_selected))
+        layout.addLayout(footer)
+
+        return tab
+
+    def _reload_members_tab(self):
+        self.members_list.clear()
+        for student in group_service.get_students_for_group(self._group.id):
+            item = QListWidgetItem(student.full_name)
+            item.setData(Qt.UserRole, student.id)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.members_list.addItem(item)
+        self.members_search_input.clear()
+        self._update_members_count_label()
+
+    def _update_members_count_label(self, *_):
+        total = self.members_list.count()
+        self.members_count_label.setText(
+            f"{total} تلميذ في هذا الفوج" if total else "لا يوجد تلاميذ في هذا الفوج بعد"
+        )
+
+    def _remove_selected(self):
+        selected_ids = self._checked_ids(self.members_list)
+        if not selected_ids:
+            return
+        group_service.remove_students_from_group(self._group.id, selected_ids)
+        self._reload_members_tab()
+        self._reload_add_tab()
+
+    def _on_members_context_menu(self, pos):
+        item = self.members_list.itemAt(pos)
+        if item is None:
+            return
+        student_id = item.data(Qt.UserRole)
+
+        menu = QMenu(self)
+        menu.setLayoutDirection(Qt.RightToLeft)
+        menu.addAction("🗑  حذف تلميذ", lambda: self._remove_one(student_id))
+        menu.exec(self.members_list.viewport().mapToGlobal(pos))
+
+    def _remove_one(self, student_id: int):
+        group_service.remove_students_from_group(self._group.id, [student_id])
+        self._reload_members_tab()
+        self._reload_add_tab()
+
+    # ------------------------------------------------------------------ #
+    # Shared helpers
+    # ------------------------------------------------------------------ #
+    def _filter_list(self, list_widget: QListWidget, text: str):
         text = text.strip()
-        for row in range(self.student_list.count()):
-            item = self.student_list.item(row)
+        for row in range(list_widget.count()):
+            item = list_widget.item(row)
             item.setHidden(bool(text) and text not in item.text())
 
-    def _select_all(self):
-        self._set_visible_checked(Qt.Checked)
-
-    def _deselect_all(self):
-        self._set_visible_checked(Qt.Unchecked)
-
-    def _set_visible_checked(self, state):
-        self.student_list.blockSignals(True)
-        for row in range(self.student_list.count()):
-            item = self.student_list.item(row)
-            if not item.isHidden():
-                item.setCheckState(state)
-        self.student_list.blockSignals(False)
-        self._update_count_label()
-
-    def _update_count_label(self, *_):
-        count = sum(
-            1 for row in range(self.student_list.count())
-            if self.student_list.item(row).checkState() == Qt.Checked
-        )
-        self.count_label.setText(f"{count} تلميذ مختار" if count else "لم يتم اختيار أي تلميذ بعد")
-
-    def _selected_student_ids(self):
+    def _checked_ids(self, list_widget: QListWidget):
         return [
-            self.student_list.item(row).data(Qt.UserRole)
-            for row in range(self.student_list.count())
-            if self.student_list.item(row).checkState() == Qt.Checked
+            list_widget.item(row).data(Qt.UserRole)
+            for row in range(list_widget.count())
+            if list_widget.item(row).checkState() == Qt.Checked
         ]
-
-    def _on_save(self):
-        group_service.set_group_students(self._group.id, self._selected_student_ids())
-        self.accept()

@@ -520,4 +520,35 @@ def build_stylesheet(font_family: str) -> str:
         border: 2px solid {c.PRIMARY};
         background-color: {c.PRIMARY};
     }}
+
+    /* ---------- Tabs (group_students_dialog's add/remove tabs) ----------
+       Same transparent-QWidget issue as the popups above — QTabBar
+       and its pane need an explicit background or they show through
+       to whatever's behind the dialog. */
+    QTabWidget::pane {{
+        background-color: {c.SURFACE};
+        border: none;
+        border-top: 1px solid {c.BORDER};
+        top: -1px;
+    }}
+    QTabBar {{
+        background-color: transparent;
+    }}
+    QTabBar::tab {{
+        background-color: transparent;
+        color: {c.TEXT_SECONDARY};
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 10px 18px;
+        margin-right: 4px;
+        font-size: 12.5px;
+        font-weight: 600;
+    }}
+    QTabBar::tab:hover {{
+        color: {c.PRIMARY};
+    }}
+    QTabBar::tab:selected {{
+        color: {c.PRIMARY};
+        border-bottom: 2px solid {c.PRIMARY};
+    }}
     """

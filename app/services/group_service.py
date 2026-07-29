@@ -150,6 +150,21 @@ def get_students_for_group(group_id: int) -> List[Student]:
     return [Student.from_row(row) for row in rows]
 
 
+def get_students_not_in_group(group_id: int) -> List[Student]:
+    """Every student NOT currently enrolled in this group — feeds the
+    "إضافة تلاميذ" tab, which should only ever offer people who can
+    actually be added."""
+    rows = get_connection().execute(
+        """
+        SELECT * FROM students
+        WHERE id NOT IN (SELECT student_id FROM group_students WHERE group_id = ?)
+        ORDER BY id DESC
+        """,
+        (group_id,),
+    ).fetchall()
+    return [Student.from_row(row) for row in rows]
+
+
 def count_students_in_group(group_id: int) -> int:
     row = get_connection().execute(
         "SELECT COUNT(*) AS c FROM group_students WHERE group_id = ?", (group_id,)
@@ -158,12 +173,44 @@ def count_students_in_group(group_id: int) -> int:
 
 
 def set_group_students(group_id: int, student_ids: List[int]) -> None:
-    """Replace a group's entire student roster with the given list."""
+    """Replace a group's entire student roster with the given list.
+    Used by the create/edit group flow (an empty roster on create,
+    or leaving it untouched on edit — see group_form.py)."""
     conn = get_connection()
     conn.execute("DELETE FROM group_students WHERE group_id = ?", (group_id,))
     conn.executemany(
         "INSERT INTO group_students (group_id, student_id) VALUES (?, ?)",
         [(group_id, student_id) for student_id in student_ids],
+    )
+    conn.commit()
+
+
+def add_students_to_group(group_id: int, student_ids: List[int]) -> None:
+    """Add students to a group's roster without touching existing
+    members — used by the "إضافة تلاميذ" tab in
+    app/ui/group_students_dialog.py."""
+    if not student_ids:
+        return
+    conn = get_connection()
+    conn.executemany(
+        "INSERT OR IGNORE INTO group_students (group_id, student_id) VALUES (?, ?)",
+        [(group_id, student_id) for student_id in student_ids],
+    )
+    conn.commit()
+
+
+def remove_students_from_group(group_id: int, student_ids: List[int]) -> None:
+    """Remove specific students from a group's roster (one or many)
+    — used by both the multi-select "حذف المحدد" button and the
+    single-row "🗑 حذف تلميذ" right-click action in
+    app/ui/group_students_dialog.py."""
+    if not student_ids:
+        return
+    conn = get_connection()
+    placeholders = ",".join("?" for _ in student_ids)
+    conn.execute(
+        f"DELETE FROM group_students WHERE group_id = ? AND student_id IN ({placeholders})",
+        (group_id, *student_ids),
     )
     conn.commit()
 
