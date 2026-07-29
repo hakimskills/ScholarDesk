@@ -68,12 +68,27 @@ class _PickRow(QFrame):
         self.student_id = student_id
         self._selected = False
         self.setCursor(Qt.PointingHandCursor)
+        # Set explicitly rather than relying on inherited direction —
+        # this widget is built with parent=None and only reparented
+        # later (via setItemWidget), so it needs its own RTL setting
+        # to lay out addWidget() calls in the right visual order.
+        self.setLayoutDirection(Qt.RightToLeft)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 7, 10, 7)
         layout.setSpacing(8)
 
-        # Left side (RTL: the trailing/utility edge) — the deselect
+        # Added first -> the leading (right) edge in RTL. Name reads
+        # naturally on the right, the way Arabic text is expected to
+        # sit in a row like this.
+        self.name_label = QLabel(name)
+        self.name_label.setObjectName("pickRowLabel")
+        self.name_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.addWidget(self.name_label)
+
+        layout.addStretch(1)
+
+        # Added last -> the trailing (left) edge in RTL: the deselect
         # "✕", hidden until this row is actually selected.
         self.remove_button = QPushButton("✕")
         self.remove_button.setObjectName("pickRowRemove")
@@ -82,13 +97,6 @@ class _PickRow(QFrame):
         self.remove_button.setVisible(False)
         self.remove_button.clicked.connect(self._deselect)
         layout.addWidget(self.remove_button, 0, Qt.AlignLeft)
-
-        layout.addStretch(1)
-
-        self.name_label = QLabel(name)
-        self.name_label.setObjectName("pickRowLabel")
-        self.name_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        layout.addWidget(self.name_label)
 
     def is_selected(self) -> bool:
         return self._selected
