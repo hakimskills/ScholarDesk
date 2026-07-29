@@ -19,6 +19,7 @@ from app.ui.dashboard import Dashboard
 from app.ui.students import StudentsPage
 from app.ui.teachers import TeachersPage
 from app.ui.groups import GroupsPage
+from app.ui.messages import MessagesPage
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.students_page = StudentsPage()
         self.teachers_page = TeachersPage()
         self.groups_page = GroupsPage()
+        self.messages_page = MessagesPage()
 
         self._pages = {
             "dashboard": self.dashboard,
@@ -50,6 +52,7 @@ class MainWindow(QMainWindow):
             # dashboard (see app/ui/dashboard.py) — it already emitted
             # this key, it just had nowhere to go until now.
             "monthly_groups": self.groups_page,
+            "messages": self.messages_page,
         }
         for page in self._pages.values():
             self.stack.addWidget(page)
@@ -58,6 +61,7 @@ class MainWindow(QMainWindow):
         self.students_page.navigate_requested.connect(self.go_to_page)
         self.teachers_page.navigate_requested.connect(self.go_to_page)
         self.groups_page.navigate_requested.connect(self.go_to_page)
+        self.messages_page.navigate_requested.connect(self.go_to_page)
 
         self.go_to_page("dashboard")
 
