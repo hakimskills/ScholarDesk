@@ -15,11 +15,17 @@ Two tabs, like a browser, instead of one combined checklist:
   own search box, a "حذف المحدد" button for multi-select removal,
   and a right-click "🗑 حذف تلميذ" action for removing just one.
 
-Every add/remove is written to the database immediately (via
-group_service.add_students_to_group / remove_students_from_group) —
-there's no separate "save" step for membership, so both tabs refresh
-each other right away and the dialog only needs a single "إغلاق"
-button.
+Selecting a student is click-to-select, not a checkbox: clicking a
+row darkens its background (hover darkens it a little, a genuine
+selection darkens it further) and reveals a small "✕" on the left to
+deselect — see _PickRow below.
+
+Every add is written to the database immediately. Every REMOVE goes
+through a confirmation warning first (_confirm_removal), whether it's
+a single right-click delete or a multi-select "حذف المحدد" — once a
+student's removed from a group there's no undo, so it's worth the
+extra click. Both tabs refresh each other right away after either
+kind of change, and the dialog only needs a single "إغلاق" button.
 
 Styled with the same formDialog/formCard building blocks used by
 app/ui/group_form.py so it reads as part of the same app rather than
@@ -29,9 +35,11 @@ a bolted-on picker.
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFrame, QLineEdit, QTabWidget,
     QWidget, QListWidget, QListWidgetItem, QAbstractItemView, QMenu,
+    QLabel, QPushButton, QMessageBox,
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 
+from app.theme import Colors
 from app.models.group import Group
 from app.services import group_service
 from app.common import make_label, make_button
@@ -45,15 +53,73 @@ def _make_search_box(placeholder: str) -> QLineEdit:
     return box
 
 
+class _PickRow(QFrame):
+    """One student row in a pick list — click anywhere to select
+    (darkens the background), click the "✕" (only visible once
+    selected) to deselect. Replaces the old checkbox-per-item
+    approach entirely."""
+
+    toggled = Signal()
+
+    def __init__(self, student_id: int, name: str, parent=None):
+        super().__init__(parent)
+        self.setObjectName("pickRow")
+        self.setProperty("selected", "false")
+        self.student_id = student_id
+        self._selected = False
+        self.setCursor(Qt.PointingHandCursor)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(8)
+
+        # Left side (RTL: the trailing/utility edge) — the deselect
+        # "✕", hidden until this row is actually selected.
+        self.remove_button = QPushButton("✕")
+        self.remove_button.setObjectName("pickRowRemove")
+        self.remove_button.setFixedSize(20, 20)
+        self.remove_button.setCursor(Qt.PointingHandCursor)
+        self.remove_button.setVisible(False)
+        self.remove_button.clicked.connect(self._deselect)
+        layout.addWidget(self.remove_button, 0, Qt.AlignLeft)
+
+        layout.addStretch(1)
+
+        self.name_label = QLabel(name)
+        self.name_label.setObjectName("pickRowLabel")
+        self.name_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        layout.addWidget(self.name_label)
+
+    def is_selected(self) -> bool:
+        return self._selected
+
+    def set_selected(self, selected: bool):
+        self._selected = selected
+        self.setProperty("selected", "true" if selected else "false")
+        self.remove_button.setVisible(selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def _deselect(self):
+        self.set_selected(False)
+        self.toggled.emit()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.set_selected(not self._selected)
+            self.toggled.emit()
+        super().mousePressEvent(event)
+
+
 def _make_pick_list() -> QListWidget:
     list_widget = QListWidget()
     list_widget.setObjectName("studentPickList")
     list_widget.setLayoutDirection(Qt.RightToLeft)
     list_widget.setMinimumHeight(280)
-    # Row selection isn't used for anything here — only the checkbox
-    # matters — and Qt's default selection highlight was covering the
-    # name text in a color that made it unreadable. Turning it off
-    # entirely fixes that; the checkbox still toggles fine on click.
+    # Selection is handled entirely by _PickRow's own click handling
+    # (see above) — Qt's built-in row selection isn't used at all,
+    # so it's turned off here to avoid a second, conflicting
+    # highlight fighting with pickRow's own "selected" background.
     list_widget.setSelectionMode(QAbstractItemView.NoSelection)
     list_widget.setFocusPolicy(Qt.NoFocus)
     return list_widget
@@ -148,11 +214,7 @@ class GroupStudentsDialog(QDialog):
     def _reload_add_tab(self):
         self.add_list.clear()
         for student in group_service.get_students_not_in_group(self._group.id):
-            item = QListWidgetItem(student.full_name)
-            item.setData(Qt.UserRole, student.id)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
-            self.add_list.addItem(item)
+            self._add_pick_row(self.add_list, student.id, student.full_name)
         self.add_search_input.clear()
         self._update_add_count_label()
 
@@ -163,7 +225,7 @@ class GroupStudentsDialog(QDialog):
         )
 
     def _add_selected(self):
-        selected_ids = self._checked_ids(self.add_list)
+        selected_ids = self._selected_ids(self.add_list)
         if not selected_ids:
             return
         group_service.add_students_to_group(self._group.id, selected_ids)
@@ -199,11 +261,7 @@ class GroupStudentsDialog(QDialog):
     def _reload_members_tab(self):
         self.members_list.clear()
         for student in group_service.get_students_for_group(self._group.id):
-            item = QListWidgetItem(student.full_name)
-            item.setData(Qt.UserRole, student.id)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
-            self.members_list.addItem(item)
+            self._add_pick_row(self.members_list, student.id, student.full_name)
         self.members_search_input.clear()
         self._update_members_count_label()
 
@@ -214,8 +272,10 @@ class GroupStudentsDialog(QDialog):
         )
 
     def _remove_selected(self):
-        selected_ids = self._checked_ids(self.members_list)
+        selected_ids = self._selected_ids(self.members_list)
         if not selected_ids:
+            return
+        if not self._confirm_removal(len(selected_ids)):
             return
         group_service.remove_students_from_group(self._group.id, selected_ids)
         self._reload_members_tab()
@@ -225,14 +285,18 @@ class GroupStudentsDialog(QDialog):
         item = self.members_list.itemAt(pos)
         if item is None:
             return
-        student_id = item.data(Qt.UserRole)
+        row = self.members_list.itemWidget(item)
+        if row is None:
+            return
 
         menu = QMenu(self)
         menu.setLayoutDirection(Qt.RightToLeft)
-        menu.addAction("🗑  حذف تلميذ", lambda: self._remove_one(student_id))
+        menu.addAction("🗑  حذف تلميذ", lambda: self._remove_one(row.student_id, row.name_label.text()))
         menu.exec(self.members_list.viewport().mapToGlobal(pos))
 
-    def _remove_one(self, student_id: int):
+    def _remove_one(self, student_id: int, student_name: str = ""):
+        if not self._confirm_removal(1, student_name):
+            return
         group_service.remove_students_from_group(self._group.id, [student_id])
         self._reload_members_tab()
         self._reload_add_tab()
@@ -240,15 +304,49 @@ class GroupStudentsDialog(QDialog):
     # ------------------------------------------------------------------ #
     # Shared helpers
     # ------------------------------------------------------------------ #
+    def _add_pick_row(self, list_widget: QListWidget, student_id: int, name: str):
+        item = QListWidgetItem()
+        row = _PickRow(student_id, name)
+        item.setSizeHint(row.sizeHint())
+        list_widget.addItem(item)
+        list_widget.setItemWidget(item, row)
+
     def _filter_list(self, list_widget: QListWidget, text: str):
         text = text.strip()
-        for row in range(list_widget.count()):
-            item = list_widget.item(row)
-            item.setHidden(bool(text) and text not in item.text())
+        for i in range(list_widget.count()):
+            item = list_widget.item(i)
+            row = list_widget.itemWidget(item)
+            item.setHidden(bool(text) and text not in row.name_label.text())
 
-    def _checked_ids(self, list_widget: QListWidget):
-        return [
-            list_widget.item(row).data(Qt.UserRole)
-            for row in range(list_widget.count())
-            if list_widget.item(row).checkState() == Qt.Checked
-        ]
+    def _selected_ids(self, list_widget: QListWidget):
+        ids = []
+        for i in range(list_widget.count()):
+            row = list_widget.itemWidget(list_widget.item(i))
+            if row is not None and row.is_selected():
+                ids.append(row.student_id)
+        return ids
+
+    def _confirm_removal(self, count: int, student_name: str = "") -> bool:
+        """Every removal — single or bulk — gets a real confirmation
+        first; there's no undo once a student's off the roster."""
+        if count == 1 and student_name:
+            message = f"هل أنت متأكد من حذف {student_name} من هذا الفوج؟"
+        else:
+            message = f"هل أنت متأكد من حذف {count} تلميذ من هذا الفوج؟"
+
+        box = QMessageBox(self)
+        box.setWindowTitle("تأكيد الحذف")
+        box.setText(message)
+        box.setIcon(QMessageBox.Warning)
+        box.setLayoutDirection(Qt.RightToLeft)
+        # Belt-and-suspenders on top of theme.py's global QMessageBox
+        # rule: an explicit background here guarantees this specific
+        # popup never renders see-through, regardless of platform.
+        box.setStyleSheet(f"QMessageBox {{ background-color: {Colors.SURFACE}; }}")
+
+        yes_button = box.addButton("حذف", QMessageBox.YesRole)
+        no_button = box.addButton("إلغاء", QMessageBox.NoRole)
+        box.setDefaultButton(no_button)
+
+        box.exec()
+        return box.clickedButton() == yes_button

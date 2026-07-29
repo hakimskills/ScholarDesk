@@ -49,6 +49,12 @@ class Colors:
     TILE_MUTED = "#8890B8"
     TILE_MUTED_HOVER = "#767FAE"
 
+    # Pickable rows (group_students_dialog) — click-to-select, not
+    # checkboxes: hover darkens slightly, selected is a clearly
+    # darker/deeper tone than hover so the two states read distinctly.
+    ROW_HOVER = "#EDEDF6"
+    ROW_SELECTED = "#CFD1E8"
+
     # Text
     TEXT_PRIMARY = "#181A33"
     TEXT_SECONDARY = "#6B6E8A"
@@ -478,47 +484,50 @@ def build_stylesheet(font_family: str) -> str:
         padding-top: 9px;
     }}
 
-    /* ---------- Checkable student picker (group_students_dialog) ----------
-       Same transparent-QWidget issue as the popups above: with no
-       explicit styling, QListWidget's built-in checkbox indicator can
-       end up nearly invisible against the app's background. Give it
-       a clearly-bordered box that's obviously empty when unchecked
-       and clearly filled (brand color) when checked. */
+    /* ---------- Pickable student rows (group_students_dialog) ----------
+       No checkboxes — clicking a row selects it (background goes to
+       ROW_SELECTED, a clearly darker tone than the ROW_HOVER a plain
+       hover gets), and a "✕" appears on the left to deselect. */
     QListWidget#studentPickList {{
         background-color: {c.SURFACE_ALT};
         border: 1px solid {c.BORDER};
         border-radius: {Radius.MD}px;
         padding: 6px;
+    }}
+    QListWidget#studentPickList::item {{
+        padding: 0px;
+        margin: 1px 0px;
+        border: none;
+    }}
+    QFrame#pickRow {{
+        background-color: transparent;
+        border-radius: {Radius.SM}px;
+    }}
+    QFrame#pickRow:hover {{
+        background-color: {c.ROW_HOVER};
+    }}
+    QFrame#pickRow[selected="true"] {{
+        background-color: {c.ROW_SELECTED};
+    }}
+    QFrame#pickRow[selected="true"]:hover {{
+        background-color: {c.ROW_SELECTED};
+    }}
+    QLabel#pickRowLabel {{
+        background-color: transparent;
         font-size: 12.5px;
         color: {c.TEXT_PRIMARY};
     }}
-    QListWidget#studentPickList::item {{
-        padding: 9px 8px;
-        border-radius: {Radius.SM}px;
-        margin: 1px 0px;
+    QPushButton#pickRowRemove {{
+        background-color: {c.DANGER_LIGHT};
+        color: {c.DANGER};
+        border: none;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 700;
     }}
-    QListWidget#studentPickList::item:hover {{
-        background-color: {c.SURFACE};
-    }}
-    QListWidget#studentPickList::item:selected,
-    QListWidget#studentPickList::item:selected:active,
-    QListWidget#studentPickList::item:selected:!active {{
-        background-color: {c.PRIMARY_LIGHT};
-        color: {c.TEXT_PRIMARY};
-    }}
-    QListWidget#studentPickList::indicator {{
-        width: 18px;
-        height: 18px;
-        border: 2px solid {c.BORDER_STRONG};
-        border-radius: 5px;
-        background-color: {c.SURFACE};
-    }}
-    QListWidget#studentPickList::indicator:hover {{
-        border: 2px solid {c.PRIMARY};
-    }}
-    QListWidget#studentPickList::indicator:checked {{
-        border: 2px solid {c.PRIMARY};
-        background-color: {c.PRIMARY};
+    QPushButton#pickRowRemove:hover {{
+        background-color: {c.DANGER};
+        color: {c.PRIMARY_TEXT_ON};
     }}
 
     /* ---------- Tabs (group_students_dialog's add/remove tabs) ----------
