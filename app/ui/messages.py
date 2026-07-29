@@ -2,22 +2,20 @@
 """
 app/ui/messages.py
 
-The Messages (الرسائل) page. Send an SMS to:
-- الكل        — every student, or every student in one chosen group
-                (فوج) when that filter is picked from the dropdown.
-- فوج معيّن   — narrows the picker below to just that group's students.
+The Messages (الرسائل) page. This page ONLY picks recipients — the
+message text is never shown here on purpose. Once you've picked at
+least one recipient and click "متابعة لكتابة الرسالة", the message
+body and the actual send happen in a separate dialog
+(app/ui/message_compose_dialog.py) that opens with the recipient
+list already locked in.
 
 Recipient picking mirrors app/ui/group_students_dialog.py's add/
-remove pattern, just laid out inline instead of in tabs:
+remove pattern:
 - RIGHT panel: "اختيار المستلمين" — a pool of students matching the
   current mode/search. Click one to add them to the message.
-- LEFT panel: "إعداد الرسالة" — the compose box, then "المستلمون
-  المحددون": every student you've added, each with a "✕" to remove
-  them — which sends them straight back to the right-hand pool.
-
-Sending itself goes through app/services/message_service.py, which
-is currently a stub (no real SMS gateway wired up yet) — see that
-file for where to plug one in.
+- LEFT panel: "المستلمون المحددون" — everyone you've added, each
+  with a "✕" to remove them — which sends them straight back to the
+  right-hand pool.
 
 Reuses the pickRow/pickRowLabel/pickRowRemove/studentPickList
 styling already defined in app/theme.py for
@@ -25,12 +23,12 @@ group_students_dialog.py, so this reads as the same interaction
 pattern rather than a new one-off widget.
 """
 
-from typing import List, Optional
+from typing import List
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QFrame, QLineEdit, QComboBox,
     QListWidget, QListWidgetItem, QAbstractItemView, QLabel,
-    QPushButton, QTextEdit, QMessageBox, QSizePolicy,
+    QPushButton, QMessageBox, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal
 
@@ -38,32 +36,17 @@ from app.theme import Colors
 from app.common import ScrollPage, make_label, make_button
 from app.widgets import SectionCard
 from app.models.student import Student
-from app.services import student_service, group_service, message_service
+from app.services import student_service, group_service
+from app.ui.message_compose_dialog import MessageComposeDialog
 
 _MODE_ALL = "الكل"
 _MODE_GROUP = "فوج معيّن"
 _MODES = [_MODE_ALL, _MODE_GROUP]
 
-_TEXTEDIT_STYLE = f"""
-QTextEdit {{
-    background-color: {Colors.SURFACE_ALT};
-    border: 1px solid {Colors.BORDER};
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 12.5px;
-    color: {Colors.TEXT_PRIMARY};
-}}
-QTextEdit:focus {{
-    background-color: {Colors.SURFACE};
-    border: 1px solid {Colors.PRIMARY};
-}}
-"""
-
 
 class _AvailableRow(QFrame):
     """One row in the right-hand pool. Click anywhere on it to add
-    that student to the message — no separate confirm step, matching
-    what was asked for: click it and it moves to the left."""
+    that student — no separate confirm step, it just moves left."""
 
     clicked = Signal()
 
@@ -97,9 +80,8 @@ class _AvailableRow(QFrame):
 
 class _ChosenRow(QFrame):
     """One row in the left-hand "المستلمون المحددون" list. Reuses the
-    pickRow "selected" visual (a filled/darker background) permanently,
-    since being in this list already means selected. The "✕" removes
-    it — which is a pure UI move, not a delete of the student."""
+    pickRow "selected" visual permanently, since being in this list
+    already means selected. "✕" removes it — a pure UI move."""
 
     removed = Signal()
 
@@ -159,7 +141,6 @@ class MessagesPage(ScrollPage):
         self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         self.group_combo.currentIndexChanged.connect(self._on_group_changed)
         self.search_box.textChanged.connect(self._populate_available_list)
-        self.message_input.textChanged.connect(self._update_char_count)
 
         self._reload_groups()
         self._on_mode_changed()
@@ -189,20 +170,20 @@ class MessagesPage(ScrollPage):
         return header
 
     # ------------------------------------------------------------------ #
-    # Main row — picker (right, in RTL) + compose (left, in RTL)
+    # Main row — picker (right, in RTL) + chosen list (left, in RTL)
     # ------------------------------------------------------------------ #
     def _build_main_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(18)
-        row.addWidget(self._build_picker_section(), 1)    # added first -> right side in RTL
-        row.addWidget(self._build_compose_section(), 1)   # added second -> left side in RTL
+        row.addWidget(self._build_picker_section(), 1)   # added first -> right side in RTL
+        row.addWidget(self._build_chosen_section(), 1)   # added second -> left side in RTL
         return row
 
     # ------------------------------------------------------------------ #
     # Right panel: mode + pool of students to click-to-add
     # ------------------------------------------------------------------ #
     def _build_picker_section(self) -> SectionCard:
-        section = SectionCard(title="اختيار المستلمين", subtitle="انقر على تلميذ لإضافته إلى الرسالة")
+        section = SectionCard(title="اختيار المستلمين", subtitle="انقر على تلميذ لإضافته إلى القائمة")
 
         self.mode_combo = QComboBox(objectName="formCombo")
         self.mode_combo.addItems(_MODES)
@@ -220,7 +201,7 @@ class MessagesPage(ScrollPage):
         self.search_box.setPlaceholderText("🔍  ابحث عن تلميذ...")
         section.add_widget(self.search_box)
 
-        self.available_list = _make_pick_list(320)
+        self.available_list = _make_pick_list(340)
         section.add_widget(self.available_list)
 
         footer = QHBoxLayout()
@@ -234,29 +215,18 @@ class MessagesPage(ScrollPage):
         return section
 
     # ------------------------------------------------------------------ #
-    # Left panel: compose box + chosen recipients (click X to remove)
+    # Left panel: chosen recipients only — no message content here
     # ------------------------------------------------------------------ #
-    def _build_compose_section(self) -> SectionCard:
-        section = SectionCard(title="إعداد الرسالة")
+    def _build_chosen_section(self) -> SectionCard:
+        section = SectionCard(title="المستلمون المحددون", subtitle="راجع القائمة ثم تابع لكتابة الرسالة")
 
-        self.message_input = QTextEdit()
-        self.message_input.setStyleSheet(_TEXTEDIT_STYLE)
-        self.message_input.setPlaceholderText("اكتب نص الرسالة هنا...")
-        self.message_input.setMinimumHeight(130)
-        section.add_widget(make_label("نص الرسالة", "formFieldLabel"))
-        section.add_widget(self.message_input)
-
-        self.char_count_label = make_label(
-            "0 حرف  •  الرسالة الواحدة تتسع لحوالي 160 حرفاً",
-            style=f"color: {Colors.TEXT_MUTED}; font-size: 11px;",
-        )
-        section.add_widget(self.char_count_label)
-
-        section.add_widget(make_button("📩  إرسال الرسالة", "primaryButton", on_click=self._on_send_clicked))
-
-        section.add_widget(make_label("المستلمون المحددون", "formSectionTitle"))
-        self.chosen_list = _make_pick_list(200)
+        self.chosen_list = _make_pick_list(340)
         section.add_widget(self.chosen_list)
+
+        section.add_widget(make_button(
+            "متابعة لكتابة الرسالة  ←", "primaryButton",
+            on_click=self._open_compose_dialog,
+        ))
 
         return section
 
@@ -357,57 +327,18 @@ class MessagesPage(ScrollPage):
 
         self.recipients_label.setText(f"📨  {len(self._chosen_students)} مستلم محدد")
 
-    def _update_char_count(self):
-        length = len(self.message_input.toPlainText())
-        self.char_count_label.setText(f"{length} حرف  •  الرسالة الواحدة تتسع لحوالي 160 حرفاً")
-
     # ------------------------------------------------------------------ #
-    # Send
+    # Hand off to the compose dialog — recipients only get "confirmed"
+    # by successfully clicking through to here.
     # ------------------------------------------------------------------ #
-    def _on_send_clicked(self):
-        message = self.message_input.toPlainText().strip()
-        if not message:
-            QMessageBox.warning(self, "الرسالة فارغة", "الرجاء كتابة نص الرسالة قبل الإرسال.")
+    def _open_compose_dialog(self):
+        if not self._chosen_students:
+            QMessageBox.warning(self, "لا يوجد مستلمون", "الرجاء إضافة تلميذ واحد على الأقل قبل المتابعة.")
             return
 
-        phone_numbers = [s.phone for s in self._chosen_students if s.phone]
-        if not phone_numbers:
-            QMessageBox.warning(self, "لا يوجد مستلمون", "الرجاء إضافة تلميذ واحد على الأقل لإرسال الرسالة إليه.")
-            return
-
-        if not self._confirm_send(len(phone_numbers)):
-            return
-
-        success, failed = message_service.send_sms(phone_numbers, message)
-
-        box = QMessageBox(self)
-        box.setWindowTitle("نتيجة الإرسال")
-        box.setLayoutDirection(Qt.RightToLeft)
-        if failed:
-            box.setIcon(QMessageBox.Warning)
-            box.setText(f"تم إرسال الرسالة إلى {len(success)} مستلم، وفشل الإرسال إلى {len(failed)}.")
-        else:
-            box.setIcon(QMessageBox.Information)
-            box.setText(f"تم إرسال الرسالة بنجاح إلى {len(success)} مستلم.")
-        box.addButton("موافق", QMessageBox.AcceptRole)
-        box.exec()
-
-        # Fresh start for the next message.
-        self._chosen_students = []
-        self.message_input.clear()
-        self._reload_available()
-        self._refresh_chosen_list()
-
-    def _confirm_send(self, count: int) -> bool:
-        box = QMessageBox(self)
-        box.setWindowTitle("تأكيد الإرسال")
-        box.setText(f"هل تريد إرسال هذه الرسالة إلى {count} مستلم؟")
-        box.setIcon(QMessageBox.Question)
-        box.setLayoutDirection(Qt.RightToLeft)
-
-        yes_button = box.addButton("إرسال", QMessageBox.YesRole)
-        no_button = box.addButton("إلغاء", QMessageBox.NoRole)
-        box.setDefaultButton(no_button)
-
-        box.exec()
-        return box.clickedButton() == yes_button
+        dialog = MessageComposeDialog(recipients=list(self._chosen_students), parent=self)
+        if dialog.exec() == MessageComposeDialog.Accepted:
+            # Message was sent -> start fresh for the next one.
+            self._chosen_students = []
+            self._reload_available()
+            self._refresh_chosen_list()
