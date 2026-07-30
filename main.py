@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 700)
 
         self.tabs = QTabWidget()
+        self.tabs.setObjectName("mainTabs")
+        self.tabs.tabBar().setObjectName("mainTabBar")
         self.tabs.setLayoutDirection(Qt.RightToLeft)
         self.tabs.setTabsClosable(True)
         self.tabs.setMovable(False)

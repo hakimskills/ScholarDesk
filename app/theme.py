@@ -132,6 +132,10 @@ def build_stylesheet(font_family: str) -> str:
         color: {c.TEXT_PRIMARY};
     }}
 
+    QMainWindow {{
+        background-color: {c.BG};
+    }}
+
     QWidget#pageRoot, QWidget#scrollContent {{
         background-color: {c.BG};
     }}
@@ -565,6 +569,46 @@ def build_stylesheet(font_family: str) -> str:
     }}
     QTabBar::close-button:hover {{
         background-color: {c.DANGER_LIGHT};
+        border-radius: 4px;
+    }}
+
+    /* ---------- Main window navigation tabs (main.py) ----------
+       Scoped to #mainTabs/#mainTabBar specifically so this doesn't
+       also restyle group_students_dialog's small add/remove tabs,
+       which use the plain underline look above instead. The strip
+       itself (mainTabBar) gets its own background, distinct from
+       the primary-colored, white-bordered tabs sitting on it. */
+    QTabWidget#mainTabs::pane {{
+        background-color: {c.BG};
+        border: none;
+        top: 0px;
+    }}
+    QTabBar#mainTabBar {{
+        background-color: {c.SURFACE_ALT};
+        border-bottom: 1px solid {c.BORDER};
+    }}
+    QTabBar#mainTabBar::tab {{
+        background-color: {c.PRIMARY};
+        color: {c.PRIMARY_TEXT_ON};
+        border: 2px solid {c.SURFACE};
+        border-radius: {Radius.MD}px;
+        padding: 8px 20px;
+        margin: 6px 4px 6px 4px;
+        font-size: 12.5px;
+        font-weight: 700;
+    }}
+    QTabBar#mainTabBar::tab:hover {{
+        background-color: {c.PRIMARY_DARK};
+    }}
+    QTabBar#mainTabBar::tab:selected {{
+        background-color: {c.PRIMARY_DARK};
+        border: 2px solid {c.SURFACE};
+    }}
+    QTabBar#mainTabBar::close-button {{
+        padding: 2px;
+    }}
+    QTabBar#mainTabBar::close-button:hover {{
+        background-color: rgba(255, 255, 255, 60);
         border-radius: 4px;
     }}
     """
