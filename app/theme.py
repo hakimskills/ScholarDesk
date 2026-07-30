@@ -560,4 +560,11 @@ def build_stylesheet(font_family: str) -> str:
         color: {c.PRIMARY};
         border-bottom: 2px solid {c.PRIMARY};
     }}
+    QTabBar::close-button {{
+        padding: 2px;
+    }}
+    QTabBar::close-button:hover {{
+        background-color: {c.DANGER_LIGHT};
+        border-radius: 4px;
+    }}
     """
