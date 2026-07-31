@@ -184,7 +184,7 @@ class MessagesPage(ScrollPage):
     # Right panel: mode + pool of students to click-to-add
     # ------------------------------------------------------------------ #
     def _build_picker_section(self) -> SectionCard:
-        section = SectionCard(title="اختيار المستلمين", subtitle="انقر على تلميذ لإضافته إلى القائمة")
+        section = SectionCard(title="اختيار المستلمين")
 
         self.mode_combo = QComboBox(objectName="formCombo")
         self.mode_combo.addItems(_MODES)
@@ -219,7 +219,7 @@ class MessagesPage(ScrollPage):
     # Left panel: chosen recipients only — no message content here
     # ------------------------------------------------------------------ #
     def _build_chosen_section(self) -> SectionCard:
-        section = SectionCard(title="المستلمون المحددون", subtitle="راجع القائمة ثم تابع لكتابة الرسالة")
+        section = SectionCard(title="المستلمون المحددون")
 
         self.chosen_list = _make_pick_list(min_height=140, max_height=200)
         section.add_widget(self.chosen_list)

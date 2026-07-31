@@ -590,9 +590,9 @@ def build_stylesheet(font_family: str) -> str:
     QTabBar#mainTabBar::tab {{
         background-color: {c.PRIMARY};
         color: {c.PRIMARY_TEXT_ON};
-        border: 2px solid {c.SURFACE};
+        border: none;
         border-radius: 0px;
-        padding: 8px 10px 8px 20px;
+        padding: 8px 8px 8px 28px;
         margin: 6px 4px 6px 4px;
         font-size: 12.5px;
         font-weight: 700;
@@ -602,11 +602,10 @@ def build_stylesheet(font_family: str) -> str:
     }}
     QTabBar#mainTabBar::tab:selected {{
         background-color: {c.PRIMARY_DARK};
-        border: 2px solid {c.SURFACE};
     }}
     QTabBar#mainTabBar::close-button {{
-        padding: 3px;
-        margin: 10px;
+        padding: 1px;
+        margin: 0px 4px 0px 0px;
     }}
     QTabBar#mainTabBar::close-button:hover {{
         background-color: rgba(255, 255, 255, 60);
